@@ -4,10 +4,12 @@ interface TeachersSectionProps {
   teachers: Teacher[];
   loading: boolean;
   error: boolean;
+  query: string;
+  onQueryChange: (query: string) => void;
   onRetry: () => void;
 }
 
-export default function TeachersSection({ teachers, loading, error, onRetry }: TeachersSectionProps) {
+export default function TeachersSection({ teachers, loading, error, query, onQueryChange, onRetry }: TeachersSectionProps) {
   return (
     <section id="teachers" className="catalog-section" aria-labelledby="teachers-title">
       <div className="section-heading">
@@ -18,6 +20,17 @@ export default function TeachersSection({ teachers, loading, error, onRetry }: T
         {!loading && !error && <span className="count">{teachers.length} teachers</span>}
       </div>
 
+      <div className="section-search">
+        <label htmlFor="teacher-search">Search teachers</label>
+        <input
+          id="teacher-search"
+          type="search"
+          placeholder="Search teacher by name..."
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+      </div>
+
       {loading ? (
         <div className="state-message" role="status">Loading teachers…</div>
       ) : error ? (
@@ -26,7 +39,9 @@ export default function TeachersSection({ teachers, loading, error, onRetry }: T
           <button type="button" onClick={onRetry}>Try again</button>
         </div>
       ) : teachers.length === 0 ? (
-        <div className="state-message" role="status">No teachers in the catalog yet.</div>
+        <div className="state-message" role="status">
+          {query.trim() ? 'No teachers found.' : 'No teachers in the catalog yet.'}
+        </div>
       ) : (
         <ul className="card-grid teacher-grid">
           {teachers.map((teacher) => (

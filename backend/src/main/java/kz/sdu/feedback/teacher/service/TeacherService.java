@@ -2,6 +2,7 @@ package kz.sdu.feedback.teacher.service;
 
 import java.util.List;
 import kz.sdu.feedback.teacher.dto.TeacherResponse;
+import kz.sdu.feedback.teacher.entity.Teacher;
 import kz.sdu.feedback.teacher.repository.TeacherRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -16,8 +17,14 @@ public class TeacherService {
     }
 
     @Transactional(readOnly = true)
-    public List<TeacherResponse> getTeachers() {
-        return teacherRepository.findAll(Sort.by("name").and(Sort.by("id"))).stream()
+    public List<TeacherResponse> getTeachers(String query) {
+        String search = query == null ? "" : query.strip();
+        Sort sort = Sort.by("name").and(Sort.by("id"));
+        List<Teacher> teachers = search.isEmpty()
+                ? teacherRepository.findAll(sort)
+                : teacherRepository.findByNameContainingIgnoreCase(search, sort);
+
+        return teachers.stream()
                 .map(teacher -> new TeacherResponse(
                         teacher.getId(), teacher.getName(), teacher.getDepartment()))
                 .toList();

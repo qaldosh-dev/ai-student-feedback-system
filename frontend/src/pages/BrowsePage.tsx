@@ -11,18 +11,21 @@ export default function BrowsePage() {
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [teachersError, setTeachersError] = useState(false);
   const [coursesError, setCoursesError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const [teacherQuery, setTeacherQuery] = useState('');
+  const [courseQuery, setCourseQuery] = useState('');
+  const [teacherAttempt, setTeacherAttempt] = useState(0);
+  const [courseAttempt, setCourseAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     setTeachersLoading(true);
-    setCoursesLoading(true);
     setTeachersError(false);
-    setCoursesError(false);
 
-    // Independent requests let one section stay useful if the other fails.
-    getTeachers(controller.signal)
-      .then(setTeachers)
+    // Ignore cancelled results so an older search cannot replace the current one.
+    getTeachers(controller.signal, teacherQuery)
+      .then((data) => {
+        if (!controller.signal.aborted) setTeachers(data);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setTeachersError(true);
       })
@@ -30,8 +33,18 @@ export default function BrowsePage() {
         if (!controller.signal.aborted) setTeachersLoading(false);
       });
 
-    getCourses(controller.signal)
-      .then(setCourses)
+    return () => controller.abort();
+  }, [teacherQuery, teacherAttempt]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCoursesLoading(true);
+    setCoursesError(false);
+
+    getCourses(controller.signal, courseQuery)
+      .then((data) => {
+        if (!controller.signal.aborted) setCourses(data);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setCoursesError(true);
       })
@@ -40,11 +53,7 @@ export default function BrowsePage() {
       });
 
     return () => controller.abort();
-  }, [attempt]);
-
-  function retry() {
-    setAttempt((previous) => previous + 1);
-  }
+  }, [courseQuery, courseAttempt]);
 
   return (
     <>
@@ -70,8 +79,22 @@ export default function BrowsePage() {
           <p className="sample-note"><span aria-hidden="true" />Sample catalog · Names and teaching assignments are for demonstration.</p>
         </div>
 
-        <TeachersSection teachers={teachers} loading={teachersLoading} error={teachersError} onRetry={retry} />
-        <CoursesSection courses={courses} loading={coursesLoading} error={coursesError} onRetry={retry} />
+        <TeachersSection
+          teachers={teachers}
+          loading={teachersLoading}
+          error={teachersError}
+          query={teacherQuery}
+          onQueryChange={setTeacherQuery}
+          onRetry={() => setTeacherAttempt((previous) => previous + 1)}
+        />
+        <CoursesSection
+          courses={courses}
+          loading={coursesLoading}
+          error={coursesError}
+          query={courseQuery}
+          onQueryChange={setCourseQuery}
+          onRetry={() => setCourseAttempt((previous) => previous + 1)}
+        />
       </main>
 
       <footer className="container site-footer">

@@ -5,6 +5,7 @@ import kz.sdu.feedback.teacher.dto.TeacherResponse;
 import kz.sdu.feedback.teacher.service.TeacherService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -17,7 +18,7 @@ public class TeacherController {
     }
 
     @GetMapping
-    public List<TeacherResponse> getTeachers() {
-        return teacherService.getTeachers();
+    public List<TeacherResponse> getTeachers(@RequestParam(name = "q", required = false) String query) {
+        return teacherService.getTeachers(query);
     }
 }

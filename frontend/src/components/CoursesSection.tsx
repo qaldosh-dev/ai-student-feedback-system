@@ -4,10 +4,12 @@ interface CoursesSectionProps {
   courses: Course[];
   loading: boolean;
   error: boolean;
+  query: string;
+  onQueryChange: (query: string) => void;
   onRetry: () => void;
 }
 
-export default function CoursesSection({ courses, loading, error, onRetry }: CoursesSectionProps) {
+export default function CoursesSection({ courses, loading, error, query, onQueryChange, onRetry }: CoursesSectionProps) {
   return (
     <section id="courses" className="catalog-section" aria-labelledby="courses-title">
       <div className="section-heading">
@@ -18,6 +20,17 @@ export default function CoursesSection({ courses, loading, error, onRetry }: Cou
         {!loading && !error && <span className="count">{courses.length} courses</span>}
       </div>
 
+      <div className="section-search">
+        <label htmlFor="course-search">Search courses</label>
+        <input
+          id="course-search"
+          type="search"
+          placeholder="Search course by code or name..."
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+      </div>
+
       {loading ? (
         <div className="state-message" role="status">Loading courses…</div>
       ) : error ? (
@@ -26,7 +39,9 @@ export default function CoursesSection({ courses, loading, error, onRetry }: Cou
           <button type="button" onClick={onRetry}>Try again</button>
         </div>
       ) : courses.length === 0 ? (
-        <div className="state-message" role="status">No courses in the catalog yet.</div>
+        <div className="state-message" role="status">
+          {query.trim() ? 'No courses found.' : 'No courses in the catalog yet.'}
+        </div>
       ) : (
         <ul className="card-grid course-grid">
           {courses.map((course) => (

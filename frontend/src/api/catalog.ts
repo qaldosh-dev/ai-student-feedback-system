@@ -10,8 +10,10 @@ export interface Course {
   name: string;
 }
 
-export async function getTeachers(signal: AbortSignal): Promise<Teacher[]> {
-  const response = await fetch('/api/teachers', {
+export async function getTeachers(signal: AbortSignal, query = ''): Promise<Teacher[]> {
+  const search = new URLSearchParams();
+  if (query.trim()) search.set('q', query.trim());
+  const response = await fetch(`/api/teachers${search.size ? `?${search}` : ''}`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
   });
   if (!response.ok) {
@@ -20,8 +22,10 @@ export async function getTeachers(signal: AbortSignal): Promise<Teacher[]> {
   return response.json();
 }
 
-export async function getCourses(signal: AbortSignal): Promise<Course[]> {
-  const response = await fetch('/api/courses', {
+export async function getCourses(signal: AbortSignal, query = ''): Promise<Course[]> {
+  const search = new URLSearchParams();
+  if (query.trim()) search.set('q', query.trim());
+  const response = await fetch(`/api/courses${search.size ? `?${search}` : ''}`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
   });
   if (!response.ok) {

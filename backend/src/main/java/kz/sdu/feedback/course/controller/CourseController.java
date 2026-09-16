@@ -5,6 +5,7 @@ import kz.sdu.feedback.course.dto.CourseResponse;
 import kz.sdu.feedback.course.service.CourseService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -17,7 +18,7 @@ public class CourseController {
     }
 
     @GetMapping
-    public List<CourseResponse> getCourses() {
-        return courseService.getCourses();
+    public List<CourseResponse> getCourses(@RequestParam(name = "q", required = false) String query) {
+        return courseService.getCourses(query);
     }
 }

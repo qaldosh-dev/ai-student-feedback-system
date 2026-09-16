@@ -17,12 +17,18 @@ public class TeacherService {
     }
 
     @Transactional(readOnly = true)
-    public List<TeacherResponse> getTeachers(String query) {
+    public List<TeacherResponse> getTeachers(String query, String courseQuery) {
         String search = query == null ? "" : query.strip();
+        String courseSearch = courseQuery == null ? "" : courseQuery.strip();
         Sort sort = Sort.by("name").and(Sort.by("id"));
-        List<Teacher> teachers = search.isEmpty()
-                ? teacherRepository.findAll(sort)
-                : teacherRepository.findByNameContainingIgnoreCase(search, sort);
+        List<Teacher> teachers;
+        if (!courseSearch.isEmpty()) {
+            teachers = teacherRepository.findMatchingTeachers(search, courseSearch, sort);
+        } else if (!search.isEmpty()) {
+            teachers = teacherRepository.findByNameContainingIgnoreCase(search, sort);
+        } else {
+            teachers = teacherRepository.findAll(sort);
+        }
 
         return teachers.stream()
                 .map(teacher -> new TeacherResponse(

@@ -22,7 +22,7 @@ export default function BrowsePage() {
     setTeachersError(false);
 
     // Ignore cancelled results so an older search cannot replace the current one.
-    getTeachers(controller.signal, teacherQuery)
+    getTeachers(controller.signal, teacherQuery, courseQuery)
       .then((data) => {
         if (!controller.signal.aborted) setTeachers(data);
       })
@@ -34,14 +34,14 @@ export default function BrowsePage() {
       });
 
     return () => controller.abort();
-  }, [teacherQuery, teacherAttempt]);
+  }, [teacherQuery, courseQuery, teacherAttempt]);
 
   useEffect(() => {
     const controller = new AbortController();
     setCoursesLoading(true);
     setCoursesError(false);
 
-    getCourses(controller.signal, courseQuery)
+    getCourses(controller.signal, courseQuery, teacherQuery)
       .then((data) => {
         if (!controller.signal.aborted) setCourses(data);
       })
@@ -53,7 +53,7 @@ export default function BrowsePage() {
       });
 
     return () => controller.abort();
-  }, [courseQuery, courseAttempt]);
+  }, [courseQuery, teacherQuery, courseAttempt]);
 
   return (
     <>
@@ -84,6 +84,7 @@ export default function BrowsePage() {
           loading={teachersLoading}
           error={teachersError}
           query={teacherQuery}
+          hasActiveSearch={Boolean(teacherQuery.trim() || courseQuery.trim())}
           onQueryChange={setTeacherQuery}
           onRetry={() => setTeacherAttempt((previous) => previous + 1)}
         />
@@ -92,6 +93,7 @@ export default function BrowsePage() {
           loading={coursesLoading}
           error={coursesError}
           query={courseQuery}
+          hasActiveSearch={Boolean(teacherQuery.trim() || courseQuery.trim())}
           onQueryChange={setCourseQuery}
           onRetry={() => setCourseAttempt((previous) => previous + 1)}
         />

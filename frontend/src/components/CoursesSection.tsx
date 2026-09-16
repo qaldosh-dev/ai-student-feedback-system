@@ -5,11 +5,12 @@ interface CoursesSectionProps {
   loading: boolean;
   error: boolean;
   query: string;
+  hasActiveSearch: boolean;
   onQueryChange: (query: string) => void;
   onRetry: () => void;
 }
 
-export default function CoursesSection({ courses, loading, error, query, onQueryChange, onRetry }: CoursesSectionProps) {
+export default function CoursesSection({ courses, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: CoursesSectionProps) {
   return (
     <section id="courses" className="catalog-section" aria-labelledby="courses-title">
       <div className="section-heading">
@@ -40,7 +41,7 @@ export default function CoursesSection({ courses, loading, error, query, onQuery
         </div>
       ) : courses.length === 0 ? (
         <div className="state-message" role="status">
-          {query.trim() ? 'No courses found.' : 'No courses in the catalog yet.'}
+          {hasActiveSearch ? 'No courses found.' : 'No courses in the catalog yet.'}
         </div>
       ) : (
         <ul className="card-grid course-grid">

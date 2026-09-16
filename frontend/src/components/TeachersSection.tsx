@@ -5,11 +5,12 @@ interface TeachersSectionProps {
   loading: boolean;
   error: boolean;
   query: string;
+  hasActiveSearch: boolean;
   onQueryChange: (query: string) => void;
   onRetry: () => void;
 }
 
-export default function TeachersSection({ teachers, loading, error, query, onQueryChange, onRetry }: TeachersSectionProps) {
+export default function TeachersSection({ teachers, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: TeachersSectionProps) {
   return (
     <section id="teachers" className="catalog-section" aria-labelledby="teachers-title">
       <div className="section-heading">
@@ -40,7 +41,7 @@ export default function TeachersSection({ teachers, loading, error, query, onQue
         </div>
       ) : teachers.length === 0 ? (
         <div className="state-message" role="status">
-          {query.trim() ? 'No teachers found.' : 'No teachers in the catalog yet.'}
+          {hasActiveSearch ? 'No teachers found.' : 'No teachers in the catalog yet.'}
         </div>
       ) : (
         <ul className="card-grid teacher-grid">

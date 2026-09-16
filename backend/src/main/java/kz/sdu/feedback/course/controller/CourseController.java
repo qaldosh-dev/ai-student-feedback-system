@@ -18,7 +18,9 @@ public class CourseController {
     }
 
     @GetMapping
-    public List<CourseResponse> getCourses(@RequestParam(name = "q", required = false) String query) {
-        return courseService.getCourses(query);
+    public List<CourseResponse> getCourses(
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "teacherQ", required = false) String teacherQuery) {
+        return courseService.getCourses(query, teacherQuery);
     }
 }

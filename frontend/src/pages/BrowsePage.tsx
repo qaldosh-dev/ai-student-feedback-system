@@ -1,0 +1,83 @@
+import { useEffect, useState } from 'react';
+import { getCourses, getTeachers } from '../api/catalog';
+import type { Course, Teacher } from '../api/catalog';
+import CoursesSection from '../components/CoursesSection';
+import TeachersSection from '../components/TeachersSection';
+
+export default function BrowsePage() {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [teachersLoading, setTeachersLoading] = useState(true);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [teachersError, setTeachersError] = useState(false);
+  const [coursesError, setCoursesError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setTeachersLoading(true);
+    setCoursesLoading(true);
+    setTeachersError(false);
+    setCoursesError(false);
+
+    // Independent requests let one section stay useful if the other fails.
+    getTeachers(controller.signal)
+      .then(setTeachers)
+      .catch(() => {
+        if (!controller.signal.aborted) setTeachersError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTeachersLoading(false);
+      });
+
+    getCourses(controller.signal)
+      .then(setCourses)
+      .catch(() => {
+        if (!controller.signal.aborted) setCoursesError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCoursesLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [attempt]);
+
+  function retry() {
+    setAttempt((previous) => previous + 1);
+  }
+
+  return (
+    <>
+      <a className="skip-link" href="#main">Skip to content</a>
+      <header className="site-header">
+        <div className="container header-content">
+          <a className="brand" href="/" aria-label="Student Feedback home">
+            <span className="brand-mark" aria-hidden="true">sdu</span>
+            <span className="brand-text">Student Feedback<span>University project</span></span>
+          </a>
+          <nav aria-label="Catalog sections">
+            <a href="#teachers">Teachers</a>
+            <a href="#courses">Courses</a>
+          </nav>
+        </div>
+      </header>
+
+      <main id="main" className="container">
+        <div className="intro">
+          <p className="eyebrow">THE UNIVERSITY CATALOG</p>
+          <h1>Explore teachers &amp; courses.</h1>
+          <p className="intro-description">A starting point for understanding your learning experience.<br className="desktop-break" /> Browse the people and subjects that make up your university.</p>
+          <p className="sample-note"><span aria-hidden="true" />Sample catalog · Names and teaching assignments are for demonstration.</p>
+        </div>
+
+        <TeachersSection teachers={teachers} loading={teachersLoading} error={teachersError} onRetry={retry} />
+        <CoursesSection courses={courses} loading={coursesLoading} error={coursesError} onRetry={retry} />
+      </main>
+
+      <footer className="container site-footer">
+        <p>AI Student Feedback System</p>
+        <p>SDU University · Student MVP</p>
+      </footer>
+    </>
+  );
+}

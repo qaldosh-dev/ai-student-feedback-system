@@ -186,3 +186,256 @@ SELECT 'course_offerings', count(*) FROM course_offerings;
 [IntelliJ: environment variables](https://www.jetbrains.com/help/idea/program-arguments-and-environment-variables.html),
 [pgAdmin: database](https://www.pgadmin.org/docs/pgadmin4/latest/database_dialog.html),
 [pgAdmin: connection](https://www.pgadmin.org/docs/pgadmin4/latest/server_dialog.html).
+
+## Moodle: Phase 2A — предпросмотр страниц 0–4 без импорта
+
+В IntelliJ перезагрузите Maven после изменения `backend/pom.xml`, откройте
+`backend/src/main/java/kz/sdu/feedback/moodle/MoodleCatalogClient.java`
+и нажмите зелёную кнопку Run рядом с его `main` (JDK 21, модуль backend).
+Это отдельный консольный запуск: Spring Boot и PostgreSQL не запускаются,
+переменные `DB_*` и пароль не нужны. Основное приложение по-прежнему запускается
+через `FeedbackApplication`.
+
+Клиент делает ровно пять последовательных GET к публичной категории
+<https://moodle.sdu.edu.kz/course/index.php?categoryid=4&lang=ru>, добавляя
+`browse=courses&perpage=20&page=0` … `page=4`, с секундной паузой между запросами.
+Команда предпросмотра по-прежнему ограничена страницами 0–4;
+`fetchFirstPage` из Phase 1 сохранён. Общий `fetchPage` теперь допускает
+неотрицательные номера для обнаруженного полного диапазона Phase 2B.
+Нет cookies, входа, редиректов, повторов запросов и записи в БД.
+При ошибке загрузки или структуры выводится номер страницы и выполнение
+останавливается: неполный результат не объявляется полным.
+
+Консоль показывает число карточек, число связей, пропуски, предупреждения,
+уникальные Moodle ID (отдельно среди всех карточек и среди валидных записей),
+преподавателей, коды курсов, пары преподаватель/код, пять уровней анализа повторов,
+до десяти групп примеров и до четырёх записей с каждой страницы.
+Повторы не удаляются. Точный логический повтор определяется одинаковыми
+teacherName + courseCode + courseName + semester; остальные группы отдельно
+показывают разные ID, нескольких преподавателей и несколько курсов.
+
+Парсер рассчитан на проверенную тему Moodle Alpha: карточки с
+`data-region="course-content"`, заголовки `.coursename`, преподаватели в соседнем
+блоке `.rui-course-card-text`. Семестр проверяется по заголовку категории.
+Суффикс с именем удаляется только при совпадении с контактом преподавателя;
+смысловые скобки сохраняются. `MoodleCourseRecord` дополнительно хранит
+`moodleCourseId` (Long), `sourcePage` (нумерация с нуля) и `sourceTitle` (полное
+исходное название с суффиксами). ID берётся из `data-course-id` и сверяется
+со ссылкой курса, если она есть. Некорректный/отсутствующий/противоречивый ID
+даёт null и предупреждение, а валидная связь сохраняется. Карточка без публичного
+контакта преподавателя пропускается: имя из названия не подставляется.
+KZ/RU пока считаются наблюдаемыми суффиксами, а не подтверждённым полем языка.
+Языковые варианты могут дать одинаковые записи; они не объединяются.
+Отделение и section не извлекаются. При изменении структуры нужен пересмотр
+парсера; неизвестные карточки выводятся как пропущенные.
+
+Проверка парсера без сети и БД: из `backend` выполните `mvn.cmd test`.
+
+## Moodle: Phase 2B — полный снимок и автономный анализ
+
+Полный обход — отдельная явная команда `MoodleCatalogCrawl.main`, а не часть
+`FeedbackApplication`. Она определяет число страниц по пагинации первой страницы,
+сохраняет каждую страницу в локальный кэш, ждёт секунду между запросами и не делает
+автоматических повторов. Ошибка записывается в `crawl.properties` вместе с номером
+страницы и `complete=false`. Повторный обход в существующий каталог запрещён,
+чтобы случайно не скачать весь Moodle заново. Кэш и отчёты находятся под `work/`,
+который уже исключён из Git.
+
+Снимок Fall 2026 уже сохранён. Для обычной повторной проверки **используйте кэш**:
+откройте `MoodleCatalogExport.java`, создайте обычную Application Run Configuration
+для его `main`, JDK 21, модуль backend. В **Program arguments** укажите:
+
+```text
+"C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-cache\fall-2026" "C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-analysis"
+```
+
+Эта команда читает только локальные файлы, не использует HTTP или PostgreSQL и
+обновляет `fall-2026-records.csv`, `fall-2026-cards.csv`, `fall-2026-summary.md`
+и `fall-2026-diagnostics.txt`. Исходные HTML остаются неизменными. Неполный кэш
+или отсутствующая страница останавливают анализ. CSV хранит все связи, а отдельный
+CSV карточек — в том числе причины пропусков. Ничего не объединяется навсегда.
+
+Только для отдельно согласованного нового снимка можно запустить
+`MoodleCatalogCrawl.java` с аргументами `crawl "<новый пустой каталог кэша>"`.
+При штатном анализе существующего снимка запускать эту команду не нужно.
+
+В памяти дополнительно хранится `moodleTeacherId`, полученный из публичной ссылки
+контакта `/user/profile.php?id=...` или `/user/view.php?id=...`; сами профили не
+запрашиваются. Совпавшие имена с разными ID остаются отдельными контактами.
+Отсутствие ID не даёт права объединять людей по имени. Группы для проверки
+считаются по ID источника; приведение регистра/пробелов используется только в
+отдельных сравнительных метриках. Суффиксы KZ/RU и похожие на имена скобки —
+признаки для ручной проверки, не подтверждённые поля языка или преподавателя.
+
+Все тесты остаются автономными: `mvn.cmd package` не обращается к Moodle и не
+запускает БД. Сущности, seed, API и frontend в Phase 2B не изменяются.
+
+## Moodle: Phase 3 — модель и полный offline dry-run
+
+`Teacher.department` и `CourseOffering.section` теперь допускают null в JPA.
+В Teacher добавлен nullable `Long moodleTeacherId` с уникальностью ненулевых ID.
+В CourseOffering добавлен nullable `Long moodleCourseId`; уникальна комбинация
+`moodle_course_id + teacher_id + semester`, а не Moodle course ID отдельно.
+Старая уникальность teacher/course/semester/section сохранена. В PostgreSQL null
+section позволяет хранить несколько разных Moodle карточек одной логической связи.
+Если позднее назначать им одинаковый section, потребуется отдельное решение по
+согласованию этих связей. `Course.code` остаётся уникальным, Course не менялся.
+Старые конструкторы seed сохранены; публичные DTO не включают source ID.
+
+Для повторного dry-run откройте `MoodleImportDryRun.java` и запустите его `main`
+в IntelliJ (Application, JDK 21, модуль backend). Program arguments:
+
+```text
+"C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-cache\fall-2026" "C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-analysis\fall-2026-phase3-dry-run.md"
+```
+
+Spring Boot, пароль и PostgreSQL этой команде не нужны. Она читает 88 сохранённых
+HTML-страниц и перезаписывает только указанный отчёт под игнорируемым `work/`.
+Повторного crawl нет. Mapper не использует JPA entities, repositories или save.
+Кандидаты — план соответствий источника, **не список новых строк после сравнения
+с существующей БД**. У существующего seed могут совпасть коды, но отличаться названия.
+
+Правила: Teacher по Moodle teacher ID с проверкой имени; Course по коду после
+нормализации регистра/пробелов с проверкой названия; Offering по Moodle course ID,
+teacher ID и semester. Разные Moodle course ID сохраняются отдельно. Department
+и section не выдумываются. Неоднозначные записи исключаются из Offering candidates.
+Три проверенных личных суффикса (LAW 190/916, TFL 371/722, CSS 416/51) удаляются
+только при точном совпадении ID карточки, контакта, кода и текста. Исходный title
+сохраняется. Это дополнение к прежнему правилу удаления совпадающего имени контакта,
+а не универсальное распознавание имён/псевдонимов. IBCTL 201 (PYP/MYP) остаётся
+неразрешённым: обе его связи требуют ручной проверки.
+
+### Физическая схема PostgreSQL: требуется отдельная проверка
+
+Изменение nullable в Java **не доказывает**, что существующие столбцы уже допускают
+null. В используемом Hibernate 7.4.5 `StandardTableMigrator` добавляет отсутствующие
+столбцы и меняет тип/длину, но не снимает NOT NULL с существующих department/section.
+В Phase 3 приложение не перезапускалось для изменения схемы; SQL ниже не выполнялся.
+
+В pgAdmin выберите свою БД `student_feedback` → Tools → Query Tool. Сначала выполните
+только проверку (пароль вводится в pgAdmin, не в код или чат):
+
+```sql
+SELECT table_name, column_name, is_nullable, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('teachers', 'courses', 'course_offerings')
+ORDER BY table_name, ordinal_position;
+
+SELECT conrelid::regclass AS table_name, conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid IN ('public.teachers'::regclass, 'public.courses'::regclass,
+                  'public.course_offerings'::regclass);
+
+SELECT 'teachers' AS table_name, count(*) FROM public.teachers
+UNION ALL SELECT 'courses', count(*) FROM public.courses
+UNION ALL SELECT 'course_offerings', count(*) FROM public.course_offerings;
+```
+
+Для старой схемы минимальное изменение nullability (после проверки, при остановленном
+backend) — эти две команды; они не удаляют значения department/section:
+
+```sql
+BEGIN;
+ALTER TABLE public.teachers ALTER COLUMN department DROP NOT NULL;
+ALTER TABLE public.course_offerings ALTER COLUMN section DROP NOT NULL;
+COMMIT;
+```
+
+Новые nullable-столбцы и именованные UNIQUE-ограничения описаны в JPA и должны
+появиться при следующем запуске с `ddl-auto=update`; проверьте результат запросом
+выше. Если их нет, эквивалентные ручные команды приведены ниже. Выполняйте только
+отсутствующие изменения, после проверки отсутствия конфликтующих ненулевых ID;
+не удаляйте существующие ограничения и не пересоздавайте таблицы:
+
+```sql
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS moodle_teacher_id bigint;
+ALTER TABLE public.course_offerings ADD COLUMN IF NOT EXISTS moodle_course_id bigint;
+ALTER TABLE public.teachers ADD CONSTRAINT uk_teachers_moodle_teacher_id
+    UNIQUE (moodle_teacher_id);
+ALTER TABLE public.course_offerings ADD CONSTRAINT uk_offerings_moodle_teacher_semester
+    UNIQUE (moodle_course_id, teacher_id, semester);
+```
+
+Обычная UNIQUE в PostgreSQL допускает несколько null, поэтому seed не требует
+фиктивных source ID. После изменений повторите проверку: department/section и
+source ID должны иметь `is_nullable=YES`; seed — 6/6/10 строк. Импорта при запуске
+FeedbackApplication нет. Реальный импорт и согласование seed отложены до Phase 4.
+
+### Phase 4A — физическая схема проверена 17 сентября 2026
+
+На `localhost:5432/student_feedback` выполнена проверка PostgreSQL 18.1.
+Оба Moodle BIGINT-столбца уже существовали, допускали null и имели нужные UNIQUE.
+Потребовались только следующие изменения, выполненные одной транзакцией:
+
+```sql
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '15s';
+ALTER TABLE public.teachers ALTER COLUMN department DROP NOT NULL;
+ALTER TABLE public.course_offerings ALTER COLUMN section DROP NOT NULL;
+COMMIT;
+```
+
+Теперь department, section и оба source ID физически допускают null.
+Сохранены `uk_teachers_moodle_teacher_id` — UNIQUE (moodle_teacher_id),
+`uk_offerings_moodle_teacher_semester` — UNIQUE (moodle_course_id, teacher_id, semester),
+`uke7loucl4tpvp9i246mackny6v` — UNIQUE (teacher_id, course_id, semester, section),
+`uk61og8rbqdd2y28rx2et5fdnxd` — UNIQUE (code). PK/FK и индексы сохранены.
+
+Текущий собранный backend успешно запущен с обычным `ddl-auto=update`; сравнение
+снимков до/после запуска не выявило дополнительных изменений схемы. Все строки
+seed полностью совпали: 6 Teachers, 6 Courses, 10 CourseOfferings; source ID null.
+Maven package и 28 тестов прошли. Выполнены 19 API-проверок напрямую и 19 через
+Vite proxy; HTML и React-модуль доступны. Визуальная проверка браузером не проводилась.
+Moodle не запрашивался, импорт не выполнялся. Повторять ALTER для этой БД не нужно.
+Подробные локальные свидетельства находятся под игнорируемым `work/phase4a-*`.
+
+## Полный утверждённый импорт Fall 2026
+
+17 сентября 2026 выполнен полный импорт из существующего локального кэша:
+500 Moodle Teachers, 898 Course candidates, 1731 Moodle CourseOfferings.
+Создано 500 Teachers, 897 Courses, 1731 Offerings; существующий CSS 465 —
+Project Management переиспользован. Seed сохранён. Итог: **506 / 903 / 1741**.
+Второй запуск создал **0 / 0 / 0** строк. IBCTL 201 (две связи), 30 карточек без
+контакта и одна нераспознанная карточка остались исключены. Запросов к Moodle нет.
+
+Импорт запускается **только явно** через `MoodleImportCommand.main`, отдельно от
+обычного `FeedbackApplication`. В IntelliJ создайте Application-конфигурацию:
+main class `kz.sdu.feedback.moodle.MoodleImportCommand`, JDK 21, модуль backend,
+те же локальные DB_USERNAME/DB_PASSWORD и при необходимости DB_URL.
+Пароль вводится только в Environment variables, не в Program arguments.
+
+Сначала Program arguments для проверки без записи:
+
+```text
+preflight "C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-cache\fall-2026" "C:\Users\User\Documents\ChatGPT\Project management main\work\moodle-analysis"
+```
+
+Для явно разрешённого импорта замените только `preflight` на `import`.
+В данной БД импорт уже выполнен; повторный запуск должен только переиспользовать записи.
+Каждый запуск создаёт отдельный `fall-2026-preflight-*.txt` или `fall-2026-import-*.txt`
+под игнорируемым work/. Команда проверяет утверждённые количества кандидатов,
+читает кэш, отключает seed и использует `ddl-auto=validate` без изменения схемы.
+
+Путь выполнения: явная команда → MoodleCatalogImportService → существующие JPA
+repositories. Преподаватели сопоставляются по Moodle teacher ID, курсы — по коду
+с проверкой названия по правилам Phase 3, Offering — по Moodle card ID/teacher/semester.
+По имени seed-преподаватели не объединяются. Существующие значения не обновляются.
+Неожиданные конфликты останавливают импорт до записи. Сервис повторяет preflight
+внутри одной SERIALIZABLE-транзакции; ошибка вставки откатывает весь импорт и
+сообщает источник ошибки. Автоматических повторов после ошибки нет.
+
+Обычный старт FeedbackApplication ничего не импортирует. Перед сборкой нового JAR
+остановите запущенный из него backend: Windows может удерживать файл.
+Проверка: `mvn.cmd package`. Добавленные JPA-тесты используют H2 только в памяти
+(test dependency), включая реальный rollback после ошибки второй вставки;
+рабочая PostgreSQL и live Moodle в тестах не используются.
+
+Post-import проверка завершена: все 1731 связи совпали с кэшем, нормальный запуск
+не изменил БД, прошли 64 API-проверки напрямую и через Vite. В браузере проверены
+полный каталог 506/903, реальные имена/коды, связанные фильтры, очистка и empty states;
+ошибок консоли нет. Итоговая сборка: 36 тестов, BUILD SUCCESS.
+Полный локальный отчёт: `work/moodle-analysis/fall-2026-full-import-report.md`.
+Известное косметическое замечание: старая надпись Sample catalog осталась в UI,
+хотя каталог теперь содержит Moodle + seed. Frontend в рамках импорта не менялся.

@@ -144,7 +144,8 @@ class MoodleCatalogImportServiceTest {
 
     @Configuration
     @EnableTransactionManagement
-    @EnableJpaRepositories(basePackages = "kz.sdu.feedback")
+    @EnableJpaRepositories(basePackages = {"kz.sdu.feedback.teacher.repository",
+            "kz.sdu.feedback.course.repository", "kz.sdu.feedback.offering.repository"})
     static class TestConfig {
         @Bean DataSource dataSource() {
             return new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1", "sa", "");

@@ -10,9 +10,11 @@ import kz.sdu.feedback.teacher.repository.TeacherRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Order(0)
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true", matchIfMissing = true)
 public class SampleDataInitializer implements CommandLineRunner {
     private final TeacherRepository teachers;

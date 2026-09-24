@@ -56,21 +56,6 @@ export default function BrowsePage() {
   }, [courseQuery, teacherQuery, courseAttempt]);
 
   return (
-    <>
-      <a className="skip-link" href="#main">Skip to content</a>
-      <header className="site-header">
-        <div className="container header-content">
-          <a className="brand" href="/" aria-label="Student Feedback home">
-            <span className="brand-mark" aria-hidden="true">sdu</span>
-            <span className="brand-text">Student Feedback<span>University project</span></span>
-          </a>
-          <nav aria-label="Catalog sections">
-            <a href="#teachers">Teachers</a>
-            <a href="#courses">Courses</a>
-          </nav>
-        </div>
-      </header>
-
       <main id="main" className="container">
         <div className="intro">
           <p className="eyebrow">THE UNIVERSITY CATALOG</p>
@@ -98,11 +83,5 @@ export default function BrowsePage() {
           onRetry={() => setCourseAttempt((previous) => previous + 1)}
         />
       </main>
-
-      <footer className="container site-footer">
-        <p>AI Student Feedback System</p>
-        <p>SDU University · Student MVP</p>
-      </footer>
-    </>
   );
 }

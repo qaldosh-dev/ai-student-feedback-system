@@ -439,3 +439,377 @@ Post-import проверка завершена: все 1731 связи совп
 Полный локальный отчёт: `work/moodle-analysis/fall-2026-full-import-report.md`.
 Известное косметическое замечание: старая надпись Sample catalog осталась в UI,
 хотя каталог теперь содержит Moodle + seed. Frontend в рамках импорта не менялся.
+
+## Authentication — Phase 1
+
+Аккаунты хранятся отдельно от каталога: `User` → таблица `users`, набор `UserRole`
+→ `user_roles`. Поля: id, email, passwordHash, emailVerified, roles,
+linkedTeacher (необязательная ссылка), createdAt (Instant). Email приводится к
+`strip().toLowerCase(Locale.ROOT)` при создании User; repository принимает уже
+нормализованный email. PostgreSQL обеспечивает UNIQUE email и UNIQUE linked_teacher_id.
+Роли STUDENT, TEACHER, ADMIN сохраняются строками, у аккаунта может быть несколько ролей.
+Обычный User создаётся с emailVerified=false. Ограничения SDU-доменов будут в будущей
+регистрации, а не в этой сущности.
+
+Добавлен только `spring-security-crypto` и PasswordEncoder (BCrypt). Фильтров
+авторизации нет: каталог остаётся публичным. User API, login, сессии и регистрация
+в этой фазе отсутствуют. Нельзя передавать сырой пароль в конструктор User:
+сначала используйте PasswordEncoder.encode(...).
+
+### Локальные тестовые аккаунты
+
+Инициализация выключена по умолчанию. Для явного запуска в IntelliJ:
+Run → Edit Configurations → FeedbackApplication → Environment variables:
+
+- `SPRING_PROFILES_ACTIVE=dev`
+- `DEV_ACCOUNTS_ENABLED=true`
+- Необязательно: `DEV_STUDENT_PASSWORD`, `DEV_TEACHER_PASSWORD`, `DEV_ADMIN_PASSWORD`.
+  Значения задавайте локально в этом окне, не в исходниках/README/чате.
+  Не включайте сохранение конфигурации запуска как общего project file.
+
+Затем Run. Создаются только отсутствующие аккаунты:
+
+| Email | Роль | Email verified | Teacher |
+|---|---|---|---|
+| student@feedback.test | STUDENT | true | нет |
+| teacher@feedback.test | TEACHER | true | Aida Sarsenova, исходный mock |
+| admin@feedback.test | ADMIN | true | нет |
+
+Если переменная пароля отсутствует/пустая, генерируется случайный секрет из 32
+криптографически случайных байтов, сохраняется только BCrypt-хеш, а секрет
+отбрасывается без вывода. Такой аккаунт подготовлен для проверки модели, но
+известного человеку пароля у него нет. Для известного тестового пароля переменная
+должна быть задана ДО первого создания аккаунта. Повторный запуск никогда не
+сбрасывает пароль и не меняет роли/ссылки существующего аккаунта. Смена пароля
+не реализована в Phase 1.
+
+В конце Phase 1 аккаунты были созданы со случайными отброшенными секретами.
+Это не готовый механизм входа. После проверки уберите обе включающие переменные
+(или задайте DEV_ACCOUNTS_ENABLED=false). Обычный запуск аккаунты не создаёт.
+
+Seed каталога выполняется раньше seed аккаунтов; все три создания проходят в
+одной транзакции. Teacher ищется по точному mock-имени/department и отсутствующему
+Moodle ID. При отсутствии или неоднозначности mock seed откатывается. Импортированные
+Teacher не изменяются и не связываются с тестовым аккаунтом.
+
+Проверки: `mvn.cmd package`. UserFoundationTest использует отдельную H2 в памяти,
+проверяет уникальность, роли, BCrypt, повторный seed, сохранение существующего
+аккаунта и rollback при отсутствии mock. Локальная PostgreSQL тестами не используется.
+
+Локальная проверка Phase 1 завершена: PostgreSQL содержит 3 Users / 3 role rows.
+Повторный dev-запуск и последующий обычный запуск не изменили аккаунты, хеши или
+каталог. Все 506 Teachers / 903 Courses / 1741 CourseOfferings и прежняя схема
+каталога совпали с исходным снимком. Проверены 32 сценария API и оба endpoint
+без query-параметров, без авторизации. Maven package: 47 тестов, 0 failures/errors.
+Первое создание таблиц дало только Hibernate notices «constraint ... does not exist,
+skipping» перед созданием новых UNIQUE constraints; фактические ограничения проверены.
+Локальный подробный отчёт: `work/auth-phase1-report.md`.
+
+## Authentication — Phase 2
+
+Sign In / Sign Out теперь доступны на существующей Browse page. Регистрации,
+email-отправки, teacher claim и ограничений каталога по ролям пока нет.
+
+### Уже настроенные локальные аккаунты
+
+Пароли трёх @feedback.test аккаунтов один раз явно установлены из локальных
+переменных DEV_STUDENT_PASSWORD, DEV_TEACHER_PASSWORD, DEV_ADMIN_PASSWORD.
+Используйте свой соответствующий пароль, заданный в Windows; его значения в проекте нет.
+Обычный FeedbackApplication пароли не меняет. Повторять setup для каждого входа не нужно.
+
+Если впоследствии потребуется явно заменить только эти development-пароли:
+
+1. В IntelliJ создайте отдельную Application run configuration для
+   `kz.sdu.feedback.user.seed.DevelopmentPasswordSetupCommand`, module backend, JDK 21.
+2. В Program arguments укажите `--local-development`.
+3. В Environment variables предоставьте DB_USERNAME, DB_PASSWORD (как для обычного
+   backend) и DEV_STUDENT_PASSWORD, DEV_TEACHER_PASSWORD, DEV_ADMIN_PASSWORD.
+   DB_URL необязателен; команда разрешает только jdbc:postgresql://localhost:5432/student_feedback.
+   Значения вводите локально, не сохраняйте конфигурацию как общий project file.
+   Если IntelliJ открыт до создания Windows-переменных, перезапустите IDE либо
+   задайте их в этой локальной run configuration.
+4. Запустите команду один раз. Она завершится сама. Все три переменные обязательны,
+   пустые значения и пароли длиннее 72 байт UTF-8 отклоняются.
+
+Команда не является startup runner. Она отключает оба seed, использует schema
+validation и одну транзакцию. Проверяет точные email, роли, verified и mock Teacher
+Aida Sarsenova ID 1 без Moodle ID, затем меняет только три хеша BCrypt.
+Она не создаёт аккаунты, не меняет роли/связи и не затрагивает другие адреса.
+Это локальный инструмент разработки, а не публичный password-reset API.
+
+Обычный запуск: FeedbackApplication с прежними DB-переменными; затем в терминале
+из корня `cd frontend`, `npm.cmd run dev`. Откройте http://localhost:5173 и нажмите
+Sign In. Для ежедневного запуска команды setup не нужны.
+
+### API и сессии
+
+| Endpoint | Результат |
+|---|---|
+| GET /api/auth/csrf | 200: headerName и CSRF token; создаёт анонимную сессию при необходимости |
+| POST /api/auth/login | JSON email/password + CSRF header; 200 с безопасным User DTO либо 401 |
+| GET /api/auth/me | 200 с текущим User DTO; без авторизованной сессии 401 |
+| POST /api/auth/logout | CSRF header; 204, сессия инвалидируется, cookie истекает |
+
+DTO: id, email, roles, emailVerified, linkedTeacher (null либо id/name).
+passwordHash, session ID и внутренние credentials в JSON не возвращаются.
+Неизвестный email, неверный пароль и неподтверждённый аккаунт получают один общий
+401: Invalid email or password. Email нормализуется (strip + lowercase).
+Отсутствующий/неверный CSRF token даёт 403 ещё до проверки credentials.
+GET logout не завершает сессию; публичного GET endpoint для него нет.
+
+Spring Security DaoAuthenticationProvider проверяет BCrypt и verified-состояние.
+После входа controller меняет session ID, обновляет CSRF и явно сохраняет
+SecurityContext в HttpSessionSecurityContextRepository. Logout выполняет стандартный
+Spring Security handler. Несколько независимых сессий допустимы: выход завершает
+только текущую сессию.
+
+JSESSIONID: HttpOnly=true, SameSite=Lax, idle timeout=30 минут, tracking только через
+cookie. Для локального HTTP Secure=false; для production HTTPS задайте
+SESSION_COOKIE_SECURE=true. Сессии хранятся на сервере; refresh страницы сохраняет
+вход, но сохранение входа между перезапусками backend не гарантируется.
+
+CSRF включён для state-changing запросов, включая login/logout. React получает
+свежий token через /api/auth/csrf перед каждым POST и передаёт его в заголовке,
+указанном headerName (X-CSRF-TOKEN). После входа старый token недействителен.
+Токен CSRF не является паролем или session ID. Пароли и токены не сохраняются
+в localStorage/sessionStorage. Vite /api proxy оставлен без изменений.
+
+AccountArea хранит только currentUser и состояние интерфейса в React state.
+На загрузке страницы вызывает /me; 401 означает обычное состояние без входа.
+Есть loading, retry при ошибке проверки сессии, форма Email/Password, общий текст
+ошибки, email/роли и Sign Out. Поле пароля очищается при отправке.
+
+### Проверки Phase 2
+
+Maven package: BUILD SUCCESS, 57 тестов (47 прежних + 10 AuthSessionTest), без ошибок.
+Frontend: npm.cmd run build — успешно. Тесты используют H2 в памяти без live Moodle.
+Реальные HTTP-проверки подтвердили все три роли, linkedTeacher ID 1, нормализацию,
+CSRF, смену ID сессии, независимые сессии, выход и отклонение старого cookie.
+Неподтверждённый пользователь проверен только в изолированной тестовой БД.
+
+Браузер: STUDENT вошёл с локальным паролем, refresh сохранил вход; связанные фильтры
+Zhasmin + MDE 153 дали 1/1; Sign Out и следующий refresh сохранили состояние выхода.
+Неверный вход показывает общий текст ошибки. Teacher/Admin проверены реальным HTTP.
+Каталог остался 506 / 903 / 1741; все его строки и схема сравнивались с исходным
+снимком. После setup хеши аккаунтов не менялись при запуске/входе/выходе.
+
+Проверочный скрипт сначала ошибочно требовал Max-Age=0 при logout. Tomcat корректно
+удаляет cookie через Expires с датой в прошлом; проверка исправлена, код приложения
+не менялся. Cookies jar удаляет cookie, старый cookie получает /me -> 401.
+Подробный локальный отчёт: work/auth-phase2-report.md.
+
+## Authentication — Phase 3
+
+Защищённые области: `/student`, `/teacher`, `/admin`. После входа навигация показывает
+только области из набора ролей аккаунта. Общий AuthProvider хранит прежнее состояние
+сессии для AccountArea, навигации и одного ProtectedRoute; общая шапка доступна на
+всех страницах. Каталог по `/` остаётся публичным.
+
+| Пользователь | GET /api/student/home | GET /api/teacher/home | GET /api/admin/home |
+|---|---:|---:|---:|
+| Без входа | 401 | 401 | 401 |
+| STUDENT | 200 | 403 | 403 |
+| TEACHER | 403 | 200 | 403 |
+| ADMIN | 403 | 403 | 200 |
+| STUDENT + TEACHER | 200 | 200 | 403 |
+
+SecurityFilterChain проверяет роли для всего соответствующего `/api/<role>/**`.
+ADMIN не получает другие роли автоматически. Это реальная серверная граница
+доступа; скрытые ссылки и ProtectedRoute отвечают только за удобство интерфейса.
+401/403 возвращаются в JSON без перенаправления на HTML login. Прежняя проверка
+CSRF для login/logout сохранена; сообщение при ошибке CSRF отличается от отказа по роли.
+
+Area endpoints возвращают только area, email, roles, linkedTeacher. Для Teacher
+связь берётся из текущего аккаунта: teacher@feedback.test связан с Aida Sarsenova,
+ID 1. Если связи нет, область доступна по роли, linkedTeacher=null и интерфейс
+сообщает об отсутствии связи. Чужой профиль не подставляется. Полноценных
+дашбордов и функций этих областей пока нет.
+
+Для проверки откройте http://localhost:5173/student, войдите существующим
+student@feedback.test, обновите страницу, затем откройте `/admin`: будет Access Denied.
+Sign Out сразу закрывает защищённую область; повторный refresh требует входа.
+Аналогично проверяются teacher@feedback.test на `/teacher` и admin@feedback.test
+на `/admin`. Локальные пароли не изменены; повторять dev-password setup не нужно.
+
+Сборка backend: `cd backend`, `mvn.cmd package` (JDK 21).
+Сборка frontend: `cd frontend`, `npm.cmd run build`.
+Обычный запуск FeedbackApplication и `npm.cmd run dev` остаётся прежним.
+Новые проверки ролей работают offline на изолированном H2, включая multi-role
+пользователя и преподавателя без связи; дополнительные аккаунты в PostgreSQL
+не создаются. Подробные результаты: `work/auth-phase3-report.md` (локальный,
+игнорируемый Git отчёт). Moodle crawling/import в этой фазе не запускается.
+
+## Authentication — Phase 4: registration and email verification
+
+> История Phase 4. Правила назначения ролей и статус SMTP ниже описывают тот этап.
+> Актуальное поведение изменено в Phase 4.1 (раздел ниже): оба домена подтверждают
+> только email, новые роли не назначаются. Реальная доставка уже подтверждена пользователем.
+
+Откройте `/register`. Публичная регистрация принимает только точные домены
+`stu.sdu.edu.kz` и `sdu.edu.kz`: пробелы по краям удаляются, регистр понижается,
+синтаксис email проверяется. Сторонние домены, поддомены, поддельные суффиксы и
+новые `@feedback.test` адреса отклоняются. Старые dev-аккаунты продолжают входить.
+
+Поток: Register → Verify Email → Sign In. Пароль: минимум 8 символов,
+максимум 72 UTF-8 байта (ограничение BCrypt; не-ASCII символы могут занимать
+несколько байт). Confirm Password проверяется интерфейсом; backend повторно
+проверяет собственную политику пароля. Выбора роли нет.
+
+| POST endpoint | JSON fields | Результат |
+|---|---|---|
+| `/api/auth/register` | email, password | 202 с безопасным message; до подтверждения roles=[], emailVerified=false, linkedTeacher=null |
+| `/api/auth/verify-email` | email, code | 200: verified=true, accountType=STUDENT либо STAFF |
+| `/api/auth/resend-verification` | email | 202 с безопасным message; отправка только подходящему неподтверждённому аккаунту вне cooldown |
+
+Все три POST требуют прежний CSRF header из `/api/auth/csrf`. Неверный домен,
+пароль, лишние поля запроса или код дают 400; отсутствующий/неверный CSRF — 403.
+Ошибка отправки письма — 503. Конкурирующий INSERT с конфликтом уникального
+email даёт безопасный 409. Хеши и коды никогда не возвращаются API.
+
+После правильного кода студент получает только STUDENT. Staff подтверждается
+с пустым набором ролей и без linkedTeacher; вход и `/me` доступны, а все role
+areas возвращают 403. Интерфейс объясняет, что настройка Teacher ещё не выполнена.
+Автоматического входа, TEACHER/ADMIN назначения или Teacher Claim нет.
+
+Шестизначный код создаётся SecureRandom. Таблица `email_verifications` хранит
+только BCrypt-хеш, время создания/истечения/использования и число попыток.
+Срок — 10 минут, максимум 5 неверных попыток, resend — не чаще 60 секунд.
+Для пользователя хранится одна запись; resend заменяет challenge и делает старый
+код недействительным. Параллельные verify/resend сериализуются блокировкой User
+в транзакции. Неверные попытки сохраняются, а успешный код используется один раз.
+
+Повторная регистрация не меняет существующий пароль, роли или аккаунт и не
+отправляет повторное письмо. Можно перейти в Continue email verification и
+запросить resend. Для verified/unknown адреса и во время cooldown resend отвечает
+тем же безопасным 202, но ничего не отправляет. Поэтому 202 не является
+подтверждением доставки или существования адреса. При SMTP-ошибке регистрация
+откатывается; неуспешный resend сохраняет предыдущий challenge.
+
+### SMTP: требуется локальная настройка
+
+Реальная доставка **не тестировалась**: SMTP не настроен. Тесты используют mock
+JavaMailSender, не отправляют писем и перехватывают код только в памяти теста.
+Обычный backend без SMTP запускается, каталог и существующий вход работают;
+новая регистрация возвращает понятную ошибку отправки, не оставляя аккаунт в БД.
+
+Нужные имена переменных:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `SMTP_FROM`
+- `SMTP_AUTH`
+- `SMTP_STARTTLS_ENABLED`
+
+Когда будете готовы к живой проверке, получите параметры у выбранного SMTP
+провайдера и задайте их **локально** в IntelliJ: Run → Edit Configurations →
+FeedbackApplication → Environment variables. Существующие DB-переменные оставьте.
+Не сохраняйте секреты в исходниках, README, общей run configuration или чате.
+Перезапустите backend, затем выполните одну регистрацию на своём доступном SDU
+ящике и введите полученный код только в приложении. Отправитель может иметь
+любой домен: подтверждается получение письма именно адресатом SDU.
+
+Реализация использует Spring Mail/JavaMailSender, ограниченные SMTP timeouts,
+STARTTLS с обязательным согласованием при включении, без mail-debug и без
+логирования содержимого письма. Письмо содержит код и срок действия, не пароль.
+SMTP и PostgreSQL не образуют общую транзакцию: редкий сбой commit после принятия
+письма SMTP может оставить доставленный, но недействительный код; повторная
+регистрация/resend выполняется через обычный интерфейс. Outbox/очередь не добавлялись.
+
+### Проверки Phase 4
+
+Maven package: 105 тестов, 0 failures/errors/skipped (63 прежних + 42 новых).
+Student/Staff, empty roles, BCrypt, запрет клиентских ролей/связей, повторная
+регистрация, expiry/attempts/resend, rollback, конкуренция, CSRF и вход проверены
+offline с H2 и mock mail sender. Frontend build прошёл.
+Некорректный JSON регистрации/verify/resend получает общий 400 без логирования
+ошибки парсера: её подробности могли бы содержать фрагменты входных секретов.
+
+Локально прошли 17 HTTP-проверок регистрации без SMTP, 65 прежних проверок
+сессий/CSRF, 46 проверок role access и 64 проверки каталога. Каталог остался
+506 Teachers / 903 Courses / 1741 CourseOfferings, аккаунты и хеши не изменились.
+Новая таблица email_verifications пуста; реальных SDU-аккаунтов пока не создано.
+
+Браузер: формы, домен, несовпадающие пароли, ошибка отсутствующего SMTP, ошибка
+кода, resend countdown, переход к Sign In и публичный поиск проверены. Успешный
+email round-trip и success-экраны после реальной доставки пока не проверены в
+браузере; backend-сценарии успеха проверены fake mail sender. Подробный отчёт:
+`work/auth-phase4-report.md`. Teacher Claim в этой фазе не реализован.
+
+## Authentication — Phase 4.1: email does not determine a role
+
+Оба точных домена `stu.sdu.edu.kz` и `sdu.edu.kz` по-прежнему разрешены. Домен
+подтверждает только доступ к SDU-почте, а не статус студента или преподавателя.
+
+После правильного кода новый аккаунт имеет `emailVerified=true`, `roles=[]`,
+`linkedTeacher=null` для **обоих** доменов. `POST /api/auth/verify-email` теперь
+возвращает только `{"verified":true}`: поле accountType удалено, поскольку оно
+ошибочно классифицировало пользователя по домену. Метод User.verifyEmail() меняет
+только флаг подтверждения и не очищает/не назначает роли. Уже существующие роли,
+связи и dev-аккаунты не меняются; миграций и startup-пересчёта ролей нет.
+
+Подтверждённый пользователь без ролей может войти и получить `/api/auth/me` с
+пустым массивом roles. Student/Teacher/Admin endpoints возвращают 403 до отдельной
+настройки ролей. Страницы регистрации, успешного подтверждения и информация об
+аккаунте больше не определяют Student/Staff по домену. Успех: “Email verified
+successfully. Your account is verified. Role setup is the next step.” Затем Sign In.
+
+SecureRandom, BCrypt-хеш кода, срок 10 минут, 5 попыток, resend 60 секунд, CSRF,
+транзакции, блокировки и отправка писем не менялись. Пользователь подтвердил
+успешную **реальную** SMTP-доставку до Phase 4.1. Эта коррекция не перенастраивает
+SMTP и не требует повторной отправки; регрессия отправки проверяется mock sender.
+
+Следующий отдельно согласуемый этап — Phase 5: Role Selection + Teacher Claim.
+Выбор Student назначит STUDENT; Teacher Claim должен связать аккаунт с конкретным
+существующим преподавателем и назначить TEACHER по согласованным правилам защиты
+от присвоения чужого профиля. Кнопки выбора, claim endpoints и выдача ролей в
+Phase 4.1 **не реализованы**. Подробный отчёт: `work/auth-phase4-1-report.md`.
+
+Проверка Phase 4.1: Maven package — 106 тестов без ошибок; frontend build прошёл.
+После перезапуска в IntelliJ прошли 46 role-access, 65 session/CSRF и 64 catalog
+HTTP-проверки. Все существующие аккаунты/роли и каталог 506 / 903 / 1741 сохранены.
+
+## Authentication — Phase 5: Role Selection + Teacher Claim
+
+Текущий flow: Register → Verify Email → Sign In → **Account setup**.
+Оба SDU-домена по-прежнему дают только подтверждённую почту и пустые роли.
+На `/account-setup` пользователь отдельно выбирает Student и/или Teacher.
+Выбор роли Admin отсутствует.
+
+Оба запроса требуют текущую сессию, подтверждённую почту и CSRF-токен из
+`GET /api/auth/csrf`:
+
+- `POST /api/account/roles/student` с `{}` (или без тела): добавляет STUDENT,
+  сохраняя остальные роли. Повторный запрос возвращает текущее состояние.
+- `POST /api/account/teacher-claim` с `{"teacherId":123}`: связывает аккаунт
+  с существующим Teacher и добавляет TEACHER. Поиск использует прежний
+  `GET /api/teachers?q=...`. В UI перед запросом показывается подтверждение.
+
+Ответ 200 — существующий CurrentUser DTO: id, email, roles, emailVerified,
+linkedTeacher (id/name или null). Посторонние поля запроса отклоняются (400).
+Нет сессии → 401; email не подтверждён → 403; отсутствующий Teacher → 404;
+профиль занят или попытка сменить уже связанный профиль → 409. Без CSRF POST
+возвращает 403 ещё до контроллера. Владелец занятого профиля не раскрывается.
+
+Изменения выполняются транзакционно: сначала блокируется текущий User, затем
+выбранный Teacher. UNIQUE `users.linked_teacher_id` остаётся последней защитой
+от двух владельцев. Блокировка Teacher не меняет данные каталога. Повторный
+claim того же Teacher разрешён, смена/unclaim не реализованы.
+
+После commit обновляются authorities текущей HTTP-сессии, её ID и CSRF-токен;
+frontend обновляет общий AuthContext из ответа. Повторный вход не требуется.
+Другие уже открытые независимые сессии получают новые authorities при следующем
+входе или успешном запросе setup в той сессии. STUDENT + TEACHER дают доступ
+к обоим разделам, но не к Admin Area. Роль STUDENT сама по себе не подтверждает
+Enrollment и не даёт будущего права оставлять отзывы о произвольных курсах.
+
+**Принятое ограничение MVP:** подтверждённая SDU-почта не доказывает принадлежность
+Teacher-профиля. Пользователь может выбрать чужой свободный профиль. В этой фазе
+нет Admin approval, SSO или официального подтверждения сотрудника; для production
+нужен отдельный доверенный способ проверки личности.
+
+Тесты claim/конкурентности используют только H2. Браузерный сценарий проверяется
+на текущем backend и собранном frontend с отдельными временными H2-аккаунтами;
+реальные профили из PostgreSQL не присваиваются. SMTP/verification и Moodle import
+не менялись. Подробные результаты: `work/auth-phase5-report.md` (локальный отчёт).

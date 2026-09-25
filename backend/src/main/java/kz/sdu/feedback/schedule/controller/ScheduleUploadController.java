@@ -3,6 +3,9 @@ package kz.sdu.feedback.schedule.controller;
 import java.util.Set;
 import java.util.Map;
 import kz.sdu.feedback.schedule.dto.ScheduleUploadResponse;
+import kz.sdu.feedback.schedule.dto.ScheduleUploadView;
+import kz.sdu.feedback.schedule.dto.ExtractedScheduleResponse;
+import java.util.List;
 import kz.sdu.feedback.schedule.service.ScheduleUploadService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,6 +20,16 @@ import org.springframework.web.server.ResponseStatusException;
 public class ScheduleUploadController {
     private final ScheduleUploadService uploads;
     public ScheduleUploadController(ScheduleUploadService uploads) { this.uploads = uploads; }
+
+    @GetMapping
+    public List<ScheduleUploadView> list(Authentication authentication) {
+        return uploads.list(authentication.getName());
+    }
+
+    @GetMapping("/{uploadId}/extracted")
+    public ExtractedScheduleResponse extracted(@PathVariable Long uploadId, Authentication authentication) {
+        return uploads.extracted(authentication.getName(), uploadId);
+    }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ScheduleUploadResponse> upload(MultipartHttpServletRequest request, Authentication authentication) {

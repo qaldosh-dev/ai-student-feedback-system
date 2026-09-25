@@ -981,3 +981,87 @@ US15 должен разбирать/проверять каждую извле�
 Проверки: 189 backend-тестов, Maven package и frontend build — PASS;
 два реальных образца проверены валидатором и через upload API на PostgreSQL.
 Локальные результаты: `work/us141-report.md`.
+
+## US15 — Automatically extract schedule information
+
+После VALID-загрузки синхронно выполняется внутренний `ScheduleExtractionService`.
+Он блокирует и проверяет исходную ScheduleUpload, повторно читает файл через
+актуальный валидатор US14.1 и разбирает именно проверенный текст. Legacy VALID
+не является обходом: Compact получает DETAILS_REQUIRED и не извлекается.
+Отдельного endpoint извлечения/списка, очередей или фоновых задач нет.
+
+Новая таблица `extracted_schedule_entries`: id, schedule_upload_id (FK),
+course_code, course_name, teacher_name, group_section, academic_term.
+Других полей/отношений нет. Владелец определяется через исходную загрузку.
+Hibernate создаёт таблицу при старте; данные Users и каталога не меняются.
+
+Парсер собирает блоки от кода курса, допускает переносы кода/названия/имени
+и несколько страниц. Убирает служебные значения кредитов/нагрузки из названия,
+печатные колонтитулы и обнаруженную подпись степени Doctor of Science после
+имени; сведения о помещении используются только как граница, не сохраняются.
+Section/group остаётся строкой целиком: N/P не означают тип занятия.
+
+Нормализация: trim и свёртка пробелов с сохранением регистра/смысла; скобки вокруг
+группы сняты. Повторы удаляются по всем пяти полям в пределах одной загрузки.
+Разные преподаватели/группы остаются разными строками. Явные перечисления полных
+имён через запятую создают отдельные записи; неизвестные/неполные блоки пропускаются.
+Отсутствующий или неоднозначный term не угадывается.
+
+Ответ прежнего upload POST содержит дополнительный объект `extraction`:
+`totalCandidates`, `extractedCount`, `skippedCount`, `duplicateCount`.
+Сумма последних трёх равна totalCandidates. Кандидаты — распознанные отношения
+в блоках (один блок с несколькими именами может дать несколько кандидатов),
+не число физических строк PDF. `extraction=null` — извлечение не выполнялось.
+Полный список записей и исходный текст не возвращаются. Frontend не менялся;
+просмотр и отображение результатов — US16, в этой задаче не реализованы.
+
+Записи и upload сохраняются в одной транзакции. Сбой откатывает новые данные и
+удаляет новый файл прежним механизмом компенсации. Повтор внутреннего вызова для
+той же загрузки атомарно заменяет только её extracted-записи под блокировкой,
+не накапливая дубликаты. Прежние загрузки массово не извлекаются.
+
+Ограничения: parser ориентирован на наблюдаемый Detailed-экспорт с кодом в начале
+текстовой строки, группой в скобках и двоеточием после имени. Новые варианты
+колонтитулов/степеней/порядка таблицы могут потребовать уточнения; автоматического
+угадывания преподавателей или терма нет. VALID означает пригодность по эвристике,
+не подтверждение подлинности/обучения. Старые PDF-лимиты US14 сохранены.
+
+Проверки US15: focused schedule-тесты, затем один полный `mvn.cmd package`.
+Реальный ignored Detailed PDF: 15 кандидатов → 10 логических записей, 0 пропусков,
+5 повторов. Результат исправлен после обнаруженных на образце degree/page-break
+особенностей, для которых добавлены синтетические регрессионные тесты.
+Ни matching, ни enrollment, ни US16 не реализованы.
+
+## US16 — View extracted schedule information
+
+Student Area now lists the current student's uploads (newest first). Each source
+keeps its filename, upload date, status, academic term(s) and stored entry count.
+Valid uploads link to `/student/schedules/:uploadId`; refresh fetches the data again.
+The list also refreshes after an upload. No client-side PDF parsing or reprocessing.
+
+Read-only endpoints, protected by the existing STUDENT role:
+- `GET /api/student/schedule-uploads`
+- `GET /api/student/schedule-uploads/{uploadId}/extracted`
+
+The server resolves the current verified Student from the session. Ownership is
+included in the upload query; another owner's ID and a missing ID both return 404.
+Teacher/Admin without STUDENT receive 403, anonymous requests 401. Multi-role users
+with STUDENT retain access to their own sources. No client userId controls ownership.
+
+List DTO: id, originalFilename, uploadedAt, status, validationMessage, academicTerms,
+extractedCount. Detail DTO: upload (same safe metadata) and entries containing only
+id, courseCode, courseName, teacherName, groupSection, academicTerm. No storage key,
+raw text, account credentials or catalog/entity relations are exposed.
+
+Entries are ordered by term, code, course name, teacher, group and id. Distinct
+teachers/groups remain separate. Past terms remain viewable under their own uploads;
+N/P are displayed as part of Group / Section, with no interpretation.
+
+Invalid/unfinished uploads return no entries, even if stale rows existed. Legacy
+VALID with no rows displays “No extracted schedule information is available for
+this upload.” GET never invokes validation/extraction or changes stored status.
+The page shows loading, empty, error/retry states and cancels stale requests.
+
+No schema change. No editing, matching, enrollment or US17. This is a small list,
+without pagination; metadata currently reads entries per VALID upload to derive
+stored counts/terms. Large histories may need a later query optimization.

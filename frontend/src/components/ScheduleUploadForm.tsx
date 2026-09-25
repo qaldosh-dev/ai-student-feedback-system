@@ -4,8 +4,9 @@ import { AccountSessionExpired } from '../api/auth';
 import { uploadSchedule } from '../api/scheduleUploads';
 import type { ScheduleUpload } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
+import { Link } from 'react-router';
 
-export default function ScheduleUploadForm() {
+export default function ScheduleUploadForm({ onUploaded }: { onUploaded?: () => void }) {
   const { expireSession } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,6 +26,7 @@ export default function ScheduleUploadForm() {
     setBusy(true);
     try {
       setUpload(await uploadSchedule(file));
+      onUploaded?.();
       setFile(null);
       if (input.current) input.current.value = '';
     } catch (failure) {
@@ -35,7 +37,7 @@ export default function ScheduleUploadForm() {
 
   return <section aria-labelledby="schedule-upload-title" className="schedule-upload">
     <h2 id="schedule-upload-title">Upload Schedule</h2>
-    <p>Upload the Detailed/Full version of your SDU Schedule PDF, including course names, teachers and groups/sections. The Compact/Short version does not contain enough details. Course information is not extracted yet.</p>
+    <p>Upload the Detailed/Full version of your SDU Schedule PDF, including course names, teachers and groups/sections. The Compact/Short version does not contain enough details. Extracted information will be available below.</p>
     <form onSubmit={submit} className="registration-form">
       <label htmlFor="schedule-file">Schedule PDF</label>
       <input ref={input} id="schedule-file" type="file" accept=".pdf,application/pdf" disabled={busy}
@@ -51,7 +53,7 @@ export default function ScheduleUploadForm() {
       <p>{upload.originalFilename}</p>
       <p>Uploaded: {new Date(upload.uploadedAt).toLocaleString()}</p>
       <p>Status: {upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</p>
-      {upload.status === 'VALID' && <p>This schedule is ready for information extraction.</p>}
+      {upload.status === 'VALID' && <Link to={`/student/schedules/${upload.id}`}>View extracted information</Link>}
       {upload.validationMessage && <p>{upload.validationMessage}</p>}
     </div>}
   </section>;

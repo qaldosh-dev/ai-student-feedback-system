@@ -6,6 +6,7 @@ import RoleAreaPage from './pages/RoleAreaPage';
 import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import AccountSetupPage from './pages/AccountSetupPage';
+import ScheduleDetailsPage from './pages/ScheduleDetailsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import SiteLayout from './components/SiteLayout';
 import { AuthProvider } from './auth/AuthContext';
@@ -22,6 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/account-setup" element={<ProtectedRoute><AccountSetupPage /></ProtectedRoute>} />
             <Route path="/student" element={<ProtectedRoute requiredRole="STUDENT"><RoleAreaPage key="student" role="STUDENT" /></ProtectedRoute>} />
+            <Route path="/student/schedules/:uploadId" element={<ProtectedRoute requiredRole="STUDENT"><ScheduleDetailsPage /></ProtectedRoute>} />
             <Route path="/teacher" element={<ProtectedRoute requiredRole="TEACHER"><RoleAreaPage key="teacher" role="TEACHER" /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requiredRole="ADMIN"><RoleAreaPage key="admin" role="ADMIN" /></ProtectedRoute>} />
           </Route>

@@ -14,6 +14,8 @@ import kz.sdu.feedback.schedule.service.ScheduleFileStorage;
 import kz.sdu.feedback.schedule.service.ScheduleUploadService;
 import kz.sdu.feedback.schedule.service.SchedulePdfValidator;
 import kz.sdu.feedback.schedule.entity.ScheduleUpload;
+import kz.sdu.feedback.schedule.repository.ExtractedScheduleEntryRepository;
+import kz.sdu.feedback.schedule.service.ScheduleExtractionService;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import static org.mockito.Mockito.*;
 import kz.sdu.feedback.user.entity.User;
@@ -51,11 +53,14 @@ class ScheduleUploadTest {
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
     @Autowired ScheduleUploadRepository uploads;
+    @Autowired ExtractedScheduleEntryRepository extracted;
+    @Autowired ScheduleExtractionService extraction;
     @Autowired ScheduleUploadService service;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean SchedulePdfValidator validator;
 
     @BeforeEach void fixtures() throws Exception {
+        extracted.deleteAll();
         uploads.deleteAll();
         users.deleteAll();
         try (var files = Files.list(directory)) { for (var file : files.toList()) Files.delete(file); }
@@ -99,7 +104,8 @@ class ScheduleUploadTest {
                         ? new String[]{"STUDENT", "TEACHER"} : new String[]{"STUDENT"})).with(csrf().asHeader()))
                 .andExpect(status().isCreated()).andReturn();
         var body = json.readTree(result.getResponse().getContentAsString());
-        assertEquals(Set.of("id", "originalFilename", "uploadedAt", "status", "validationMessage", "validatedAt"), body.propertyNames());
+        assertEquals(Set.of("id", "originalFilename", "uploadedAt", "status", "validationMessage", "validatedAt", "extraction"), body.propertyNames());
+        assertEquals(1, body.get("extraction").get("extractedCount").asInt());
         assertEquals("VALID", body.get("status").asString());
         assertTrue(body.get("validationMessage").isNull());
         assertNotNull(java.time.Instant.parse(body.get("validatedAt").asString()));
@@ -110,6 +116,9 @@ class ScheduleUploadTest {
         assertTrue(saved.getStorageKey().matches("[0-9a-f-]{36}\\.pdf"));
         assertArrayEquals(scheduleBytes, Files.readAllBytes(directory.resolve(saved.getStorageKey())));
         assertEquals(1, uploads.count());
+        var entry = extracted.findByScheduleUploadIdOrderById(saved.getId()).getFirst();
+        assertEquals(saved.getId(), entry.getScheduleUpload().getId());
+        assertEquals("Morgan Rivera", entry.getTeacherName());
         mvc.perform(get("/schedule-uploads/" + saved.getStorageKey())).andExpect(status().isNotFound());
     }
 
@@ -238,6 +247,48 @@ class ScheduleUploadTest {
         assertNotEquals(uploads.findById(first.id()).orElseThrow().getUser().getId(), uploads.findById(second.id()).orElseThrow().getUser().getId());
     }
 
+    @Test void legacyValidCompactIsRevalidatedAndCannotProduceRows() throws Exception {
+        String key = java.util.UUID.randomUUID() + ".pdf";
+        Files.write(directory.resolve(key), SchedulePdfFixtures.pdf("Schedule\n2038-2039 2 term\nDay/Hour\nABC 789 [04-N] : R 300"));
+        var upload = new ScheduleUpload(users.findByEmail("student@feedback.test").orElseThrow(), "old.pdf", key);
+        upload.finishValidation(null); // Simulate a legacy US14 decision.
+        uploads.saveAndFlush(upload);
+        assertNull(extraction.extract(upload.getId()));
+        assertEquals(ScheduleUpload.ValidationReason.DETAILS_REQUIRED, uploads.findById(upload.getId()).orElseThrow().getValidationReason());
+        assertEquals(0, extracted.count());
+    }
+
+    @Test void nonValidUploadCannotBeExtracted() {
+        var upload = uploads.saveAndFlush(new ScheduleUpload(users.findByEmail("student@feedback.test").orElseThrow(),
+                "pending.pdf", java.util.UUID.randomUUID() + ".pdf"));
+        assertThrows(IllegalStateException.class, () -> extraction.extract(upload.getId()));
+        assertEquals(0, extracted.count());
+    }
+
+    @Test void repeatExtractionDoesNotDuplicateAndUploadsStaySeparate() {
+        var first = service.upload("student@feedback.test", pdf("first.pdf"));
+        extraction.extract(first.id());
+        assertEquals(1, extracted.count());
+        var second = service.upload("both@feedback.test", pdf("second.pdf"));
+        assertEquals(2, extracted.count());
+        assertEquals(1, extracted.findByScheduleUploadIdOrderById(first.id()).size());
+        assertEquals(1, extracted.findByScheduleUploadIdOrderById(second.id()).size());
+    }
+
+    @Test void multiPageBestEffortPersistsCompleteEntriesAndReportsCounts() throws Exception {
+        var bytes = SchedulePdfFixtures.pdf("Schedule\n2038-2039 2 term\nDay/Hour\nABC 789 Course One [01-N]\nMorgan Rivera : Room A 300",
+                "ABC 789 Course One [01-N]\nMorgan Rivera : Room A 300\nABC 789 Course One [15-P]\nJamie Quinn : Room A 300\nBAD 123 Missing teacher [01-N] : R 300");
+        var result = service.upload("student@feedback.test", new MockMultipartFile("file", "pages.pdf", "application/pdf", bytes));
+        assertEquals(new kz.sdu.feedback.schedule.service.ScheduleParser.Summary(4, 2, 1, 1), result.extraction());
+        assertEquals(2, extracted.count());
+    }
+
+    @Test void persistedEntryModelContainsNoTimetableOrCatalogRelations() {
+        var fields = java.util.Arrays.stream(kz.sdu.feedback.schedule.entity.ExtractedScheduleEntry.class.getDeclaredFields())
+                .map(java.lang.reflect.Field::getName).collect(java.util.stream.Collectors.toSet());
+        assertEquals(Set.of("id", "scheduleUpload", "courseCode", "courseName", "teacherName", "groupSection", "academicTerm"), fields);
+    }
+
     private static final byte[] scheduleBytes = createSchedule();
     private static byte[] createSchedule() {
         try { return SchedulePdfFixtures.schedule(); }
@@ -248,6 +299,7 @@ class ScheduleUploadTest {
         return new MockMultipartFile("file", filename, "application/pdf", scheduleBytes);
     }
     private void assertEmpty() throws Exception {
+        assertEquals(0, extracted.count());
         assertEquals(0, uploads.count());
         try (var files = Files.list(directory)) { assertEquals(0, files.count()); }
     }

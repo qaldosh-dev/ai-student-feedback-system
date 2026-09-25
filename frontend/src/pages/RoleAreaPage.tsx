@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CurrentUser, UserRole } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
 import ScheduleUploadForm from '../components/ScheduleUploadForm';
+import ScheduleUploadList from '../components/ScheduleUploadList';
 
 interface AreaHome {
   area: UserRole;
@@ -16,6 +17,7 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [uploadsVersion, setUploadsVersion] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,7 +64,10 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
           <p>This area currently confirms your account access.</p>
         </div>
       )}
-      {role === 'STUDENT' && home && !loading && !error && <ScheduleUploadForm key={currentUser?.id} />}
+      {role === 'STUDENT' && home && !loading && !error && <>
+        <ScheduleUploadForm key={`form-${currentUser?.id}`} onUploaded={() => setUploadsVersion(value => value + 1)} />
+        <ScheduleUploadList key={`list-${currentUser?.id}`} refreshKey={uploadsVersion} />
+      </>}
     </main>
   );
 }

@@ -1,6 +1,12 @@
 package kz.sdu.feedback.schedule.service;
 
 import kz.sdu.feedback.schedule.dto.ScheduleUploadResponse;
+import kz.sdu.feedback.schedule.dto.ScheduleUploadView;
+import kz.sdu.feedback.schedule.dto.ExtractedScheduleResponse;
+import kz.sdu.feedback.schedule.entity.ExtractedScheduleEntry;
+import kz.sdu.feedback.schedule.repository.ExtractedScheduleEntryRepository;
+import kz.sdu.feedback.user.entity.User;
+import java.util.List;
 import kz.sdu.feedback.schedule.entity.ScheduleUpload;
 import kz.sdu.feedback.schedule.repository.ScheduleUploadRepository;
 import kz.sdu.feedback.user.entity.UserRole;
@@ -20,22 +26,54 @@ public class ScheduleUploadService {
     private final ScheduleUploadRepository uploads;
     private final ScheduleFileStorage files;
     private final SchedulePdfValidator validator;
+    private final ScheduleExtractionService extraction;
+    private final ExtractedScheduleEntryRepository entries;
 
     public ScheduleUploadService(UserRepository users, ScheduleUploadRepository uploads, ScheduleFileStorage files,
-                                 SchedulePdfValidator validator) {
+                                 SchedulePdfValidator validator, ScheduleExtractionService extraction,
+                                 ExtractedScheduleEntryRepository entries) {
         this.users = users;
         this.uploads = uploads;
         this.files = files;
         this.validator = validator;
+        this.extraction = extraction;
+        this.entries = entries;
     }
 
-    @Transactional
-    public ScheduleUploadResponse upload(String authenticatedEmail, MultipartFile file) {
+    @Transactional(readOnly = true)
+    public List<ScheduleUploadView> list(String authenticatedEmail) {
+        var user = requireStudent(authenticatedEmail);
+        return uploads.findByUserIdOrderByUploadedAtDescIdDesc(user.getId()).stream()
+                .map(upload -> ScheduleUploadView.from(upload, visibleEntries(upload))).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ExtractedScheduleResponse extracted(String authenticatedEmail, Long uploadId) {
+        var user = requireStudent(authenticatedEmail);
+        var upload = uploads.findByIdAndUserId(uploadId, user.getId()).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Schedule upload not found."));
+        var rows = visibleEntries(upload);
+        return new ExtractedScheduleResponse(ScheduleUploadView.from(upload, rows),
+                rows.stream().map(ExtractedScheduleResponse.Entry::from).toList());
+    }
+
+    private List<ExtractedScheduleEntry> visibleEntries(ScheduleUpload upload) {
+        // Reads never revalidate/reprocess a file; invalid uploads must not reveal even stale rows.
+        return upload.getStatus() == ScheduleUpload.Status.VALID ? entries.findForDisplay(upload.getId()) : List.of();
+    }
+
+    private User requireStudent(String authenticatedEmail) {
         var user = users.findByEmail(authenticatedEmail).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in required."));
         if (!user.isEmailVerified() || !user.getRoles().contains(UserRole.STUDENT)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Student access is required.");
         }
+        return user;
+    }
+
+    @Transactional
+    public ScheduleUploadResponse upload(String authenticatedEmail, MultipartFile file) {
+        var user = requireStudent(authenticatedEmail);
         var stored = files.store(file);
         // Filesystem writes are not database transactions; compensate on any DB rollback, including commit failure.
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -54,7 +92,8 @@ public class ScheduleUploadService {
             reason = ScheduleUpload.ValidationReason.VALIDATION_UNAVAILABLE;
         }
         upload.finishValidation(reason);
+        var summary = upload.getStatus() == ScheduleUpload.Status.VALID ? extraction.extract(upload.getId()) : null;
         uploads.flush();
-        return ScheduleUploadResponse.from(upload);
+        return ScheduleUploadResponse.from(upload, summary);
     }
 }

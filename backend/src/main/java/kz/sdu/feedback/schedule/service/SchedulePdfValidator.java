@@ -40,40 +40,52 @@ public class SchedulePdfValidator {
 
     /** Returns only a safe reason (null means valid); no text or individual schedule values escape this method. */
     public ValidationReason validate(Path file) {
+        return readValidated(file).reason();
+    }
+
+    /** Internal only: extraction uses the very same text that passed current validation. */
+    public record ValidatedText(ValidationReason reason, String text) {
+        @Override public String toString() { return "ValidatedText[reason=" + reason + "]"; }
+    }
+
+    private ValidatedText rejected(ValidationReason reason) { return new ValidatedText(reason, null); }
+
+    public ValidatedText readValidated(Path file) {
         long deadline = System.nanoTime() + MAX_VALIDATION_NANOS;
         try {
-            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || !Files.isReadable(file)) return VALIDATION_UNAVAILABLE;
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || !Files.isReadable(file)) return rejected(VALIDATION_UNAVAILABLE);
             long size = Files.size(file);
-            if (size == 0) return EMPTY_PDF;
-            if (size > 10 * 1024 * 1024) return VALIDATION_LIMIT;
+            if (size == 0) return rejected(EMPTY_PDF);
+            if (size > 10 * 1024 * 1024) return rejected(VALIDATION_LIMIT);
             try (var source = new RandomAccessReadBufferedFile(file.toFile())) {
                 // Disable PDFBox's repair mode: damaged structures must not be silently repaired and accepted.
                 try (var document = new PDFParser(source).parse(false)) {
-                    if (document.isEncrypted() || !document.getCurrentAccessPermission().canExtractContent()) return UNREADABLE_PDF;
+                    if (document.isEncrypted() || !document.getCurrentAccessPermission().canExtractContent()) return rejected(UNREADABLE_PDF);
                     int pages = document.getNumberOfPages();
-                    if (pages == 0) return EMPTY_PDF;
-                    if (pages > MAX_PAGES) return VALIDATION_LIMIT;
+                    if (pages == 0) return rejected(EMPTY_PDF);
+                    if (pages > MAX_PAGES) return rejected(VALIDATION_LIMIT);
                     var stripper = new BoundedTextStripper(deadline);
                     var text = new BoundedTextWriter();
                     stripper.writeText(document, text);
                     String normalized = text.toString().replaceAll("[\\s\\p{Z}]+", " ").strip();
-                    if (normalized.codePoints().noneMatch(Character::isLetterOrDigit)) return EMPTY_PDF;
+                    if (normalized.codePoints().noneMatch(Character::isLetterOrDigit)) return rejected(EMPTY_PDF);
                     if (!TITLE.matcher(normalized).find() || !TABLE.matcher(normalized).find()
                             || !TERM.matcher(normalized).find() || !COURSE_CODE.matcher(normalized).find()) {
-                        return NOT_SCHEDULE;
+                        return rejected(NOT_SCHEDULE);
                     }
-                    return DETAILS.matcher(normalized).find() ? null : DETAILS_REQUIRED;
+                    return DETAILS.matcher(normalized).find()
+                            ? new ValidatedText(null, text.toString()) : rejected(DETAILS_REQUIRED);
                 }
             }
         } catch (InvalidPasswordException encrypted) {
-            return UNREADABLE_PDF;
+            return rejected(UNREADABLE_PDF);
         } catch (ValidationLimitException limit) {
-            return VALIDATION_LIMIT;
+            return rejected(VALIDATION_LIMIT);
         } catch (java.nio.file.FileSystemException storageFailure) {
-            return VALIDATION_UNAVAILABLE;
+            return rejected(VALIDATION_UNAVAILABLE);
         } catch (IOException malformed) {
             // Never log parser exception messages: they may contain source text or internal paths.
-            return INVALID_PDF;
+            return rejected(INVALID_PDF);
         }
     }
 

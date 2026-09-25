@@ -114,3 +114,4 @@ h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .teacher-choices li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid #dce8f4; }
 .claim-confirmation { padding: 1rem; background: #edf6ff; border-radius: .75rem; }
 .claim-confirmation button + button { margin-left: .75rem; }
+.schedule-upload { display: grid; gap: 16px; }

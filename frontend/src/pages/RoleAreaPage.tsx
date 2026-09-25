@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CurrentUser, UserRole } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
+import ScheduleUploadForm from '../components/ScheduleUploadForm';
 
 interface AreaHome {
   area: UserRole;
@@ -61,6 +62,7 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
           <p>This area currently confirms your account access.</p>
         </div>
       )}
+      {role === 'STUDENT' && home && !loading && !error && <ScheduleUploadForm key={currentUser?.id} />}
     </main>
   );
 }

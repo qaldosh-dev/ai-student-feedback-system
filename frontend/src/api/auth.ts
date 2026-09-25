@@ -18,16 +18,21 @@ export async function getCurrentUser(signal: AbortSignal): Promise<CurrentUser |
   return response.json();
 }
 
-async function authPost(path: string, body?: Record<string, string | number>, timeoutMs = 10000): Promise<Response> {
+export async function csrfHeaders(): Promise<Record<string, string>> {
   // A fresh token handles login/logout rotation and expired sessions without browser storage.
   const csrfResponse = await fetch('/api/auth/csrf', {
     credentials: 'same-origin', signal: AbortSignal.timeout(10000),
   });
   if (!csrfResponse.ok) throw new Error('Could not verify the request. Please try again.');
   const csrf: { headerName: string; token: string } = await csrfResponse.json();
+  return { [csrf.headerName]: csrf.token };
+}
+
+async function authPost(path: string, body?: Record<string, string | number>, timeoutMs = 10000): Promise<Response> {
+  const headers = await csrfHeaders();
   const response = await fetch(path, {
     method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs),
-    headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (response.status === 401) {

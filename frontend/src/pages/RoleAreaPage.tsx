@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import type { CurrentUser, UserRole } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
 import ScheduleUploadForm from '../components/ScheduleUploadForm';
@@ -65,6 +66,7 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
         </div>
       )}
       {role === 'STUDENT' && home && !loading && !error && <>
+        <p><Link to="/student/verified-courses">View Verified Courses</Link></p>
         <ScheduleUploadForm key={`form-${currentUser?.id}`} onUploaded={() => setUploadsVersion(value => value + 1)} />
         <ScheduleUploadList key={`list-${currentUser?.id}`} refreshKey={uploadsVersion} />
       </>}

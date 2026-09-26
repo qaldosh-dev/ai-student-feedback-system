@@ -62,7 +62,7 @@ public class ScheduleUploadService {
         return upload.getStatus() == ScheduleUpload.Status.VALID ? entries.findForDisplay(upload.getId()) : List.of();
     }
 
-    private User requireStudent(String authenticatedEmail) {
+    User requireStudent(String authenticatedEmail) {
         var user = users.findByEmail(authenticatedEmail).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in required."));
         if (!user.isEmailVerified() || !user.getRoles().contains(UserRole.STUDENT)) {

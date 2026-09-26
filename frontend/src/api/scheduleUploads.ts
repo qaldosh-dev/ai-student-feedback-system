@@ -31,6 +31,22 @@ export interface ExtractedSchedule {
   }[];
 }
 
+export interface VerifiedCourse {
+  verifiedCourseId: number;
+  courseOfferingId: number;
+  uploadId: number;
+  sourceEntryId: number;
+  courseCode: string;
+  courseName: string;
+  teacherName: string;
+  groupSection: string;
+  academicTerm: string;
+}
+
+export function listVerifiedCourses(signal: AbortSignal) {
+  return readSchedule<VerifiedCourse[]>('/api/student/verified-courses', signal);
+}
+
 async function readSchedule<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     credentials: 'same-origin', signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),

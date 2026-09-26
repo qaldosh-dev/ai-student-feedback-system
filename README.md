@@ -1065,3 +1065,33 @@ The page shows loading, empty, error/retry states and cancels stale requests.
 No schema change. No editing, matching, enrollment or US17. This is a small list,
 without pagination; metadata currently reads entries per VALID upload to derive
 stored counts/terms. Large histories may need a later query optimization.
+
+## US17 — View Verified Courses
+
+`GET /api/student/verified-courses` lazily reconciles catalog matches for the
+session's verified STUDENT only. `/student/verified-courses` is a separate page;
+US16's source view stays available. Multi-role students retain access; anonymous
+requests return 401 and Teacher/Admin without STUDENT return 403.
+
+Matching requires a VALID upload and complete extracted row, exactly one course
+with the normalized code, equivalent academic name, exactly one teacher with the
+normalized full name, and exactly one existing offering connecting them. Only
+whitespace and letter case are normalized. Multiple teachers or offerings fail
+closed; no fuzzy match, arbitrary Moodle shell choice or new catalog records.
+
+The catalog has semester/section fields, but imported Moodle offerings currently
+have Fall 2026 and a NULL section. Matching confirms only the course/teacher
+relationship, not independent enrollment or historical term/group coverage.
+Academic term and the complete group identifier come from the source schedule.
+Different teachers, groups, terms and uploads stay distinguishable.
+
+The new `verified_courses` table references one unique source entry and one
+existing offering, plus createdAt. Ownership is derived through entry → upload →
+user. Repeated reads reuse the same rows; reads reconcile stale matches. They do
+not change source entries or read PDFs. Re-extraction deletes derived matches
+before replacing source rows in the same upload-locked transaction. The next
+verified read recreates only valid matches. No automatic processing at startup.
+
+Catalog data is loaded once per request for this small MVP; verification locks
+owned uploads in ID order. Larger histories/catalogs may need later optimization.
+This is not the final enrollment/review-eligibility model. US18/19 are not included.

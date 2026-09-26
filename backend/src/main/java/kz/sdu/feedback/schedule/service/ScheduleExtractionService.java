@@ -4,6 +4,7 @@ import kz.sdu.feedback.schedule.entity.ExtractedScheduleEntry;
 import kz.sdu.feedback.schedule.entity.ScheduleUpload;
 import kz.sdu.feedback.schedule.repository.ExtractedScheduleEntryRepository;
 import kz.sdu.feedback.schedule.repository.ScheduleUploadRepository;
+import kz.sdu.feedback.schedule.repository.VerifiedCourseRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +15,13 @@ public class ScheduleExtractionService {
     private final ScheduleFileStorage files;
     private final SchedulePdfValidator validator;
     private final ScheduleParser parser;
+    private final VerifiedCourseRepository verified;
 
     public ScheduleExtractionService(ScheduleUploadRepository uploads, ExtractedScheduleEntryRepository entries,
-                                     ScheduleFileStorage files, SchedulePdfValidator validator, ScheduleParser parser) {
+                                     ScheduleFileStorage files, SchedulePdfValidator validator, ScheduleParser parser,
+                                     VerifiedCourseRepository verified) {
         this.uploads = uploads; this.entries = entries; this.files = files; this.validator = validator; this.parser = parser;
+        this.verified = verified;
     }
 
     /** Internal service step, not an endpoint. Always reload/lock and revalidate, including legacy VALID uploads. */
@@ -29,6 +33,7 @@ public class ScheduleExtractionService {
         }
         var checked = validator.readValidated(files.fileForValidation(upload.getStorageKey()));
         upload.finishValidation(checked.reason());
+        verified.deleteForUpload(uploadId);
         if (checked.reason() != null) {
             entries.deleteByScheduleUploadId(uploadId);
             return null;

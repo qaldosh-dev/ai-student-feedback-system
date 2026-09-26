@@ -1126,3 +1126,29 @@ tables is maintained by this single locked service transaction, not a cross-tabl
 SQL constraint. Direct repository writes are not an alternative processing path.
 
 US19 status presentation, US38 admin handling and Reviews are not implemented.
+
+## US19 — View verification status
+
+The existing `GET /api/student/schedule-uploads/{uploadId}/extracted` adds only
+`verificationStatus` and `verificationReason` to each safe entry DTO. After the
+existing Student/owner checks, it reads persisted outcomes for that upload:
+VerifiedCourse → VERIFIED with no reason; otherwise PendingCatalogVerification →
+PENDING with its US18 enum reason; otherwise NOT_CHECKED with no reason. Defensive
+precedence chooses VERIFIED if inconsistent historical data has both outcomes;
+GET does not repair it. US18 remains responsible for the one-active-outcome rule.
+
+This detail GET stays read-only. It never invokes matching, PDF parsing, extraction,
+verification writes or catalog changes. Unprocessed/new/legacy entries may remain
+NOT_CHECKED until the existing US17 verification flow processes them. No new trigger,
+endpoint, database column, review permission or admin action was introduced.
+
+The existing extracted-information page labels PDF validation separately from
+per-entry Verification. It shows all source rows, a verified/pending/not-checked
+summary, and short explanations for every current US18 reason. Pending is normal
+page content, not an API failure screen. The separate Verified Courses page and its
+CourseOffering + term grouping are unchanged: 10 real source rows have 10 statuses,
+while the grouped view has 6 logical courses.
+
+Ownership, anonymous 401, wrong-role 403, foreign/missing upload 404 and multi-role
+Student access are unchanged. No pending entity IDs, storage paths, raw text or
+private entity graphs are added to responses. No US20, Reviews or US38 workflow.

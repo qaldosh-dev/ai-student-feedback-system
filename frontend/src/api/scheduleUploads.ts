@@ -19,6 +19,11 @@ export interface ScheduleUploadView {
   extractedCount: number;
 }
 
+export type VerificationStatus = 'VERIFIED' | 'PENDING' | 'NOT_CHECKED';
+export type PendingVerificationReason = 'COURSE_NOT_FOUND' | 'TEACHER_NOT_FOUND' | 'COURSE_AND_TEACHER_NOT_FOUND'
+  | 'NO_COURSE_OFFERING' | 'AMBIGUOUS_COURSE' | 'AMBIGUOUS_TEACHER' | 'AMBIGUOUS_OFFERING'
+  | 'COURSE_DATA_CONFLICT' | 'INCOMPLETE_ENTRY';
+
 export interface ExtractedSchedule {
   upload: ScheduleUploadView;
   entries: {
@@ -28,6 +33,8 @@ export interface ExtractedSchedule {
     teacherName: string;
     groupSection: string;
     academicTerm: string;
+    verificationStatus: VerificationStatus;
+    verificationReason: PendingVerificationReason | null;
   }[];
 }
 

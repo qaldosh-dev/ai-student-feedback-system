@@ -4,6 +4,7 @@ import { AccountSessionExpired } from '../api/auth';
 import { getExtractedSchedule } from '../api/scheduleUploads';
 import type { ExtractedSchedule } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
+import { summarizeVerification, verificationPresentation } from './verificationPresentation';
 
 export default function ScheduleDetailsPage() {
   const { uploadId = '' } = useParams();
@@ -36,6 +37,8 @@ function ScheduleDetails({ uploadId }: { uploadId: string }) {
     return () => controller.abort();
   }, [uploadId, attempt, expireSession]);
 
+  const summary = summarizeVerification(data?.entries ?? []);
+
   return <main id="main" className="container role-area">
     <Link to="/student">Back to My Schedule Uploads</Link>
     <h1>Extracted Schedule Information</h1>
@@ -45,19 +48,25 @@ function ScheduleDetails({ uploadId }: { uploadId: string }) {
       <div className="state-message area-details">
         <p><strong>{data.upload.originalFilename}</strong> · Upload #{data.upload.id}</p>
         <p>Uploaded: {new Date(data.upload.uploadedAt).toLocaleString()}</p>
-        <p>Status: {data.upload.status.charAt(0) + data.upload.status.slice(1).toLowerCase()}</p>
+        <p>PDF validation: {data.upload.status.charAt(0) + data.upload.status.slice(1).toLowerCase()}</p>
         {data.upload.academicTerms.map(term => <p key={term}><strong>Academic Term:</strong> {term}</p>)}
         {data.upload.validationMessage && <p>{data.upload.validationMessage}</p>}
       </div>
       {data.entries.length === 0 ? <p className="state-message">No extracted schedule information is available for this upload.</p> : <>
-        <p>{data.entries.length} extracted entries · Source information from this upload</p>
+        <p>{summary.extracted} extracted entries · {summary.verified} verified · {summary.pending} pending
+          {summary.notChecked > 0 && <> · {summary.notChecked} not checked</>}</p>
         <ul className="schedule-list">
-          {data.entries.map(entry => <li key={entry.id} className="course-card schedule-card">
+          {data.entries.map(entry => {
+            const verification = verificationPresentation(entry);
+            return <li key={entry.id} className="course-card schedule-card">
             <h2>{entry.courseCode} — {entry.courseName}</h2>
             <p><strong>Teacher:</strong> {entry.teacherName}</p>
             <p><strong>Group / Section:</strong> {entry.groupSection}</p>
             <p><strong>Academic Term:</strong> {entry.academicTerm}</p>
-          </li>)}
+            <p><strong>Verification:</strong> {verification.label}</p>
+            {verification.reason && <p><strong>Reason:</strong> {verification.reason}</p>}
+          </li>;
+          })}
         </ul>
       </>}
     </>}

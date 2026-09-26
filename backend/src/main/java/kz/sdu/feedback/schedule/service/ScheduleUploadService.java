@@ -5,6 +5,9 @@ import kz.sdu.feedback.schedule.dto.ScheduleUploadView;
 import kz.sdu.feedback.schedule.dto.ExtractedScheduleResponse;
 import kz.sdu.feedback.schedule.entity.ExtractedScheduleEntry;
 import kz.sdu.feedback.schedule.repository.ExtractedScheduleEntryRepository;
+import kz.sdu.feedback.schedule.repository.VerifiedCourseRepository;
+import kz.sdu.feedback.schedule.repository.PendingCatalogVerificationRepository;
+import java.util.stream.Collectors;
 import kz.sdu.feedback.user.entity.User;
 import java.util.List;
 import kz.sdu.feedback.schedule.entity.ScheduleUpload;
@@ -28,16 +31,21 @@ public class ScheduleUploadService {
     private final SchedulePdfValidator validator;
     private final ScheduleExtractionService extraction;
     private final ExtractedScheduleEntryRepository entries;
+    private final VerifiedCourseRepository verified;
+    private final PendingCatalogVerificationRepository pending;
 
     public ScheduleUploadService(UserRepository users, ScheduleUploadRepository uploads, ScheduleFileStorage files,
                                  SchedulePdfValidator validator, ScheduleExtractionService extraction,
-                                 ExtractedScheduleEntryRepository entries) {
+                                 ExtractedScheduleEntryRepository entries, VerifiedCourseRepository verified,
+                                 PendingCatalogVerificationRepository pending) {
         this.users = users;
         this.uploads = uploads;
         this.files = files;
         this.validator = validator;
         this.extraction = extraction;
         this.entries = entries;
+        this.verified = verified;
+        this.pending = pending;
     }
 
     @Transactional(readOnly = true)
@@ -53,8 +61,15 @@ public class ScheduleUploadService {
         var upload = uploads.findByIdAndUserId(uploadId, user.getId()).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Schedule upload not found."));
         var rows = visibleEntries(upload);
+        if (rows.isEmpty()) return new ExtractedScheduleResponse(ScheduleUploadView.from(upload, rows), List.of());
+        // Read persisted outcomes only, after ownership checks. Never call the matcher from this detail GET.
+        var verifiedIds = verified.findBySourceEntryScheduleUploadId(uploadId).stream()
+                .map(value -> value.getSourceEntry().getId()).collect(Collectors.toSet());
+        var pendingReasons = pending.findBySourceEntryScheduleUploadId(uploadId).stream()
+                .collect(Collectors.toMap(value -> value.getSourceEntry().getId(), value -> value.getReason()));
         return new ExtractedScheduleResponse(ScheduleUploadView.from(upload, rows),
-                rows.stream().map(ExtractedScheduleResponse.Entry::from).toList());
+                rows.stream().map(entry -> ExtractedScheduleResponse.Entry.from(entry,
+                        verifiedIds.contains(entry.getId()), pendingReasons.get(entry.getId()))).toList());
     }
 
     private List<ExtractedScheduleEntry> visibleEntries(ScheduleUpload upload) {

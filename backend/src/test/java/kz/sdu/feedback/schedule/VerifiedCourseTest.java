@@ -14,6 +14,7 @@ import kz.sdu.feedback.teacher.repository.TeacherRepository;
 import kz.sdu.feedback.offering.entity.CourseOffering;
 import kz.sdu.feedback.offering.repository.CourseOfferingRepository;
 import kz.sdu.feedback.schedule.entity.*;
+import kz.sdu.feedback.schedule.entity.PendingCatalogVerification.Reason;
 import kz.sdu.feedback.schedule.repository.*;
 import kz.sdu.feedback.schedule.service.*;
 import kz.sdu.feedback.user.entity.User;
@@ -45,9 +46,11 @@ class VerifiedCourseTest {
     @Autowired ScheduleUploadRepository uploads;
     @Autowired ExtractedScheduleEntryRepository entries;
     @Autowired VerifiedCourseRepository verified;
+    @Autowired PendingCatalogVerificationRepository pending;
     @Autowired VerifiedCourseService service;
     @Autowired ScheduleExtractionService extraction;
     @MockitoSpyBean SchedulePdfValidator validator;
+    @MockitoSpyBean ScheduleParser parser;
     private ScheduleUpload upload;
     private Course course;
     private Teacher teacher;
@@ -56,7 +59,7 @@ class VerifiedCourseTest {
     private static final String API = "/api/student/verified-courses";
 
     @BeforeEach void setup() {
-        verified.deleteAll(); entries.deleteAll(); uploads.deleteAll();
+        pending.deleteAll(); verified.deleteAll(); entries.deleteAll(); uploads.deleteAll();
         users.deleteAll(); offerings.deleteAll(); courses.deleteAll(); teachers.deleteAll();
         users.saveAndFlush(new User(EMAIL, "unused", Set.of(UserRole.STUDENT), true, null));
         users.saveAndFlush(new User("other@feedback.test", "unused", Set.of(UserRole.STUDENT), true, null));
@@ -75,6 +78,7 @@ class VerifiedCourseTest {
         assertEquals(source.getId(), first.getFirst().sourceEntryId());
         assertEquals(first, service.list(EMAIL));
         assertEquals(1, verified.count());
+        assertEquals(0, pending.count());
         assertEquals(1, courses.count()); assertEquals(1, teachers.count()); assertEquals(1, offerings.count());
     }
 
@@ -86,6 +90,13 @@ class VerifiedCourseTest {
                 problem.equals("blank-group") ? " " : "04-N", problem.equals("blank-term") ? " " : "2026-2027 1 term");
         assertTrue(service.list(EMAIL).isEmpty());
         assertEquals(1, entries.count()); assertEquals(0, verified.count());
+        assertPending(switch (problem) {
+            case "unknown-code" -> Reason.COURSE_NOT_FOUND;
+            case "unknown-teacher", "partial-teacher" -> Reason.TEACHER_NOT_FOUND;
+            case "wrong-name" -> Reason.COURSE_DATA_CONFLICT;
+            default -> Reason.INCOMPLETE_ENTRY;
+        });
+        assertEquals(1, courses.count()); assertEquals(1, teachers.count()); assertEquals(1, offerings.count());
     }
 
     @Test void unrelatedOfferingDoesNotVerifyExistingTeacherAndCourse() {
@@ -94,24 +105,28 @@ class VerifiedCourseTest {
         offerings.saveAndFlush(new CourseOffering(teacher, different, "Fall 2026", null));
         standardRow(upload);
         assertTrue(service.list(EMAIL).isEmpty());
+        assertPending(Reason.NO_COURSE_OFFERING);
     }
 
     @Test void ambiguousTeacherFailsClosedEvenIfOnlyOneHasOffering() {
         teachers.saveAndFlush(new Teacher("  MORGAN  Rivera ", null, 123L));
         standardRow(upload);
         assertTrue(service.list(EMAIL).isEmpty());
+        assertPending(Reason.AMBIGUOUS_TEACHER);
     }
 
     @Test void multipleSourceOfferingsAreNotArbitrarilyChosen() {
         offerings.saveAndFlush(new CourseOffering(teacher, course, "Fall 2026", null, 101L));
         standardRow(upload);
         assertTrue(service.list(EMAIL).isEmpty());
+        assertPending(Reason.AMBIGUOUS_OFFERING);
     }
 
     @Test void normalizedCourseCodeAmbiguityFailsClosed() {
         courses.saveAndFlush(new Course("abc 789", "Experimental Design"));
         standardRow(upload);
         assertTrue(service.list(EMAIL).isEmpty());
+        assertPending(Reason.AMBIGUOUS_COURSE);
     }
 
     @Test void differentTeachersGroupsAndPastTermsStayDistinct() {
@@ -162,6 +177,7 @@ class VerifiedCourseTest {
         upload.finishValidation(ScheduleUpload.ValidationReason.DETAILS_REQUIRED); uploads.saveAndFlush(upload);
         assertTrue(service.list(EMAIL).isEmpty()); assertEquals(0, verified.count());
         assertEquals(1, entries.count());
+        assertEquals(0, pending.count());
     }
 
     @Test void newCatalogAmbiguityRemovesPreviouslyVerifiedMatch() {
@@ -169,6 +185,7 @@ class VerifiedCourseTest {
         teachers.saveAndFlush(new Teacher("Morgan Rivera", null, 200L));
         assertTrue(service.list(EMAIL).isEmpty()); assertEquals(0, verified.count());
         assertEquals(1, entries.count());
+        assertPending(Reason.AMBIGUOUS_TEACHER);
     }
 
     @Test void reExtractionClearsOldReferencesAndNewRowsCanBeVerified() {
@@ -188,6 +205,118 @@ class VerifiedCourseTest {
                 .when(validator).readValidated(any());
         assertNull(extraction.extract(upload.getId()));
         assertEquals(0, verified.count()); assertEquals(0, entries.count());
+    }
+
+    @Test void bothUnknownArePersistedAndUnchangedRetryIsIdempotent() {
+        var source = unknownRow(upload);
+        assertTrue(service.list(EMAIL).isEmpty());
+        var first = assertPending(Reason.COURSE_AND_TEACHER_NOT_FOUND);
+        assertEquals(source.getId(), first.getSourceEntry().getId());
+        assertTrue(service.list(EMAIL).isEmpty());
+        var repeat = assertPending(Reason.COURSE_AND_TEACHER_NOT_FOUND);
+        assertEquals(first.getId(), repeat.getId());
+        assertEquals(first.getCreatedAt(), repeat.getCreatedAt());
+        assertEquals(first.getUpdatedAt(), repeat.getUpdatedAt());
+        assertEquals(1, courses.count()); assertEquals(1, teachers.count()); assertEquals(1, offerings.count());
+    }
+
+    @Test void pendingReasonChangesInPlaceThenResolvesWhenCatalogBecomesComplete() {
+        unknownRow(upload); service.list(EMAIL);
+        var first = assertPending(Reason.COURSE_AND_TEACHER_NOT_FOUND);
+        var newCourse = courses.saveAndFlush(new Course("XYZ 900", "Unknown Subject")); // Test-only catalog maintenance.
+        service.list(EMAIL);
+        var changed = assertPending(Reason.TEACHER_NOT_FOUND);
+        assertEquals(first.getId(), changed.getId());
+        assertEquals(first.getCreatedAt(), changed.getCreatedAt());
+        assertTrue(changed.getUpdatedAt().isAfter(first.getUpdatedAt()));
+        var newTeacher = teachers.saveAndFlush(new Teacher("Unknown Person", null));
+        service.list(EMAIL); assertPending(Reason.NO_COURSE_OFFERING);
+        offerings.saveAndFlush(new CourseOffering(newTeacher, newCourse, "Fall 2026", null));
+        var result = service.list(EMAIL);
+        assertEquals(1, result.size()); assertEquals(0, pending.count()); assertEquals(1, verified.count());
+        assertEquals(result, service.list(EMAIL)); assertEquals(0, pending.count());
+    }
+
+    @Test void parallelRetriesDoNotAccumulatePendingRows() throws Exception {
+        unknownRow(upload);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> service.list(EMAIL));
+            var second = executor.submit(() -> service.list(EMAIL));
+            assertTrue(first.get(10, java.util.concurrent.TimeUnit.SECONDS).isEmpty());
+            assertTrue(second.get(10, java.util.concurrent.TimeUnit.SECONDS).isEmpty());
+        }
+        assertPending(Reason.COURSE_AND_TEACHER_NOT_FOUND);
+    }
+
+    @Test void pendingIsOwnerScopedAndNeverExposedByVerifiedApi() throws Exception {
+        unknownRow(upload);
+        var other = upload("other@feedback.test"); unknownRow(other);
+        service.list(EMAIL);
+        assertEquals(1, pending.findBySourceEntryScheduleUploadId(upload.getId()).size());
+        assertTrue(pending.findBySourceEntryScheduleUploadId(other.getId()).isEmpty());
+        var original = pending.findAll().getFirst();
+        mvc.perform(get(API).param("userId", upload.getUser().getId().toString())
+                .with(user("other@feedback.test").roles("STUDENT")))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+        assertEquals(1, pending.findBySourceEntryScheduleUploadId(other.getId()).size());
+        var untouched = pending.findById(original.getId()).orElseThrow();
+        assertEquals(original.getUpdatedAt(), untouched.getUpdatedAt());
+        assertEquals(2, pending.count()); assertEquals(0, verified.count());
+    }
+
+    @Test void pendingHasUniqueSourceAndForeignKeyProtection() {
+        var source = unknownRow(upload); service.list(EMAIL);
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                pending.saveAndFlush(new PendingCatalogVerification(source, Reason.COURSE_NOT_FOUND)));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> entries.deleteById(source.getId()));
+        assertEquals(1, entries.count()); assertEquals(1, pending.count());
+    }
+
+    @Test void reExtractionRemovesOldPendingReferences() {
+        var old = unknownRow(upload); service.list(EMAIL);
+        doReturn(new SchedulePdfValidator.ValidatedText(null,
+                "Schedule\n2026-2027 1 term\nDay/Hour\nABC 789 Experimental Design [04-N]\nMorgan Rivera : Room A\n"))
+                .when(validator).readValidated(any());
+        extraction.extract(upload.getId());
+        assertEquals(0, pending.count()); assertFalse(entries.existsById(old.getId()));
+        assertEquals(1, service.list(EMAIL).size()); assertEquals(0, pending.count());
+    }
+
+    @Test void extractionFailureRollsBackPendingCleanup() {
+        var source = unknownRow(upload); service.list(EMAIL);
+        var original = pending.findAll().getFirst();
+        doReturn(new SchedulePdfValidator.ValidatedText(null, "test text")).when(validator).readValidated(any());
+        doThrow(new IllegalStateException("Synthetic parser failure")).when(parser).parse(anyString());
+        assertThrows(IllegalStateException.class, () -> extraction.extract(upload.getId()));
+        assertTrue(entries.existsById(source.getId()));
+        assertEquals(original.getId(), pending.findAll().getFirst().getId());
+        assertEquals(original.getUpdatedAt(), pending.findAll().getFirst().getUpdatedAt());
+    }
+
+    @Test void invalidUploadClearsPendingWithoutDeletingSource() {
+        unknownRow(upload); service.list(EMAIL);
+        upload.finishValidation(ScheduleUpload.ValidationReason.DETAILS_REQUIRED); uploads.saveAndFlush(upload);
+        assertTrue(service.list(EMAIL).isEmpty());
+        assertEquals(0, pending.count()); assertEquals(1, entries.count());
+    }
+
+    @Test void failedRevalidationClearsPendingBeforeDeletingSource() {
+        unknownRow(upload); service.list(EMAIL);
+        doReturn(new SchedulePdfValidator.ValidatedText(ScheduleUpload.ValidationReason.DETAILS_REQUIRED, null))
+                .when(validator).readValidated(any());
+        assertNull(extraction.extract(upload.getId()));
+        assertEquals(0, pending.count()); assertEquals(0, entries.count());
+    }
+
+    private PendingCatalogVerification assertPending(Reason reason) {
+        assertEquals(0, verified.count());
+        assertEquals(1, pending.count());
+        var value = pending.findAll().getFirst();
+        assertEquals(reason, value.getReason());
+        return value;
+    }
+    private ExtractedScheduleEntry unknownRow(ScheduleUpload owner) {
+        return row(owner, "XYZ 900", "Unknown Subject", "Unknown Person", "04-N", "2026-2027 1 term");
     }
 
     private ScheduleUpload upload(String email) {

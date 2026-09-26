@@ -1095,3 +1095,34 @@ verified read recreates only valid matches. No automatic processing at startup.
 Catalog data is loaded once per request for this small MVP; verification locks
 owned uploads in ID order. Larger histories/catalogs may need later optimization.
 This is not the final enrollment/review-eligibility model. US18/19 are not included.
+
+## US18 — Handle unknown teacher or course
+
+The existing `VerifiedCourseService` matcher now returns one internal structured
+outcome: an existing offering, or a pending reason. Exact code/name/full-teacher-name
+rules are unchanged. It still runs lazily through the existing student-owned US17
+request; there is no new public pending endpoint or frontend status page.
+
+`pending_catalog_verifications` stores id, source_entry_id (foreign key + UNIQUE),
+reason, createdAt and updatedAt. Names, term, group and ownership remain available
+through the source entry and upload; they are not duplicated. Hibernate adds this
+table without changing catalog tables.
+
+Reasons: COURSE_NOT_FOUND, TEACHER_NOT_FOUND, COURSE_AND_TEACHER_NOT_FOUND,
+NO_COURSE_OFFERING, AMBIGUOUS_COURSE, AMBIGUOUS_TEACHER, AMBIGUOUS_OFFERING,
+COURSE_DATA_CONFLICT and INCOMPLETE_ENTRY. Incomplete fields take precedence;
+both missing identities are detected together, followed by missing/ambiguous
+course, conflicting course name, missing/ambiguous teacher, and offering checks.
+No fuzzy matching, inferred identities or catalog creation.
+
+The same upload lock and transaction reconcile both outcome tables. Unchanged
+pending rows keep their ID and timestamps. A changed reason updates the same row.
+A confident match deletes the old pending row before saving/reusing VerifiedCourse;
+a lost match deletes VerifiedCourse before saving pending. Re-extraction or failed
+current validation cleans both tables before replacing/removing extracted rows,
+with rollback on failure. Invalid uploads cannot retain active pending outcomes.
+Unique source keys prevent duplicates within each table; mutual exclusion between
+tables is maintained by this single locked service transaction, not a cross-table
+SQL constraint. Direct repository writes are not an alternative processing path.
+
+US19 status presentation, US38 admin handling and Reviews are not implemented.

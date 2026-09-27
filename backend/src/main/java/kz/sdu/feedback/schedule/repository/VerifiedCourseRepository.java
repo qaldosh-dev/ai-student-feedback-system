@@ -5,6 +5,16 @@ import kz.sdu.feedback.schedule.entity.VerifiedCourse;
 import org.springframework.data.jpa.repository.*;
 
 public interface VerifiedCourseRepository extends JpaRepository<VerifiedCourse, Long> {
+    @Query("""
+            select v from VerifiedCourse v
+            join fetch v.sourceEntry e join fetch e.scheduleUpload u
+            join fetch v.courseOffering o join fetch o.course join fetch o.teacher
+            where u.user.id = :ownerId and u.status = :status
+            and not exists (select p.id from PendingCatalogVerification p where p.sourceEntry = e)
+            """)
+    List<VerifiedCourse> findEligibilityEvidence(Long ownerId,
+            kz.sdu.feedback.schedule.entity.ScheduleUpload.Status status);
+
     List<VerifiedCourse> findBySourceEntryScheduleUploadId(Long uploadId);
 
     // Execute before replacing extracted rows, within the same upload-locked transaction.

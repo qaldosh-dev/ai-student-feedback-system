@@ -1,7 +1,10 @@
 import type { Teacher } from '../api/catalog';
+import type { RelationshipContext } from '../pages/relationshipHighlights';
+import VerifiedRelationships from './VerifiedRelationships';
 
 interface TeachersSectionProps {
   teachers: Teacher[];
+  relationships?: Map<number, RelationshipContext[]>;
   loading: boolean;
   error: boolean;
   query: string;
@@ -10,7 +13,7 @@ interface TeachersSectionProps {
   onRetry: () => void;
 }
 
-export default function TeachersSection({ teachers, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: TeachersSectionProps) {
+export default function TeachersSection({ teachers, relationships, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: TeachersSectionProps) {
   return (
     <section id="teachers" className="catalog-section" aria-labelledby="teachers-title">
       <div className="section-heading">
@@ -46,13 +49,14 @@ export default function TeachersSection({ teachers, loading, error, query, hasAc
       ) : (
         <ul className="card-grid teacher-grid">
           {teachers.map((teacher) => (
-            <li key={teacher.id} className="teacher-card">
+            <li key={teacher.id} className={`teacher-card${relationships?.has(teacher.id) ? ' has-verified-relationship' : ''}`}>
               <div className="avatar" aria-hidden="true">
                 {teacher.name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('')}
               </div>
               <div>
                 <h3>{teacher.name}</h3>
                 <p>{teacher.department}</p>
+                <VerifiedRelationships relationships={relationships?.get(teacher.id)} />
               </div>
             </li>
           ))}

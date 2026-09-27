@@ -118,3 +118,12 @@ h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .schedule-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
 .schedule-card { display: grid; gap: 10px; overflow-wrap: anywhere; }
 .schedule-card h2 { font-size: 18px; letter-spacing: 0; }
+
+/* A relationship belongs to this student, course, teacher and term. */
+.teacher-card.has-verified-relationship,
+.course-card.has-verified-relationship { border-color: #87b7de; background: #f4faff; }
+.verified-relationships { margin-top: 14px; font-size: 0.8rem; color: #275777; }
+.verified-relationships strong { font-weight: 600; }
+.verified-relationships ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.verified-relationships li { line-height: 1.5; }
+.verified-relationships span { display: block; color: #536a7a; }

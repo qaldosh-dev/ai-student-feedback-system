@@ -1,7 +1,10 @@
 import type { Course } from '../api/catalog';
+import type { RelationshipContext } from '../pages/relationshipHighlights';
+import VerifiedRelationships from './VerifiedRelationships';
 
 interface CoursesSectionProps {
   courses: Course[];
+  relationships?: Map<number, RelationshipContext[]>;
   loading: boolean;
   error: boolean;
   query: string;
@@ -10,7 +13,7 @@ interface CoursesSectionProps {
   onRetry: () => void;
 }
 
-export default function CoursesSection({ courses, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: CoursesSectionProps) {
+export default function CoursesSection({ courses, relationships, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: CoursesSectionProps) {
   return (
     <section id="courses" className="catalog-section" aria-labelledby="courses-title">
       <div className="section-heading">
@@ -46,9 +49,10 @@ export default function CoursesSection({ courses, loading, error, query, hasActi
       ) : (
         <ul className="card-grid course-grid">
           {courses.map((course) => (
-            <li key={course.id} className="course-card">
+            <li key={course.id} className={`course-card${relationships?.has(course.id) ? ' has-verified-relationship' : ''}`}>
               <span className="course-code">{course.code}</span>
               <h3>{course.name}</h3>
+              <VerifiedRelationships relationships={relationships?.get(course.id)} />
             </li>
           ))}
         </ul>

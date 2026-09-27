@@ -1152,3 +1152,28 @@ while the grouped view has 6 logical courses.
 Ownership, anonymous 401, wrong-role 403, foreign/missing upload 404 and multi-role
 Student access are unchanged. No pending entity IDs, storage paths, raw text or
 private entity graphs are added to responses. No US20, Reviews or US38 workflow.
+
+## US20 — Review eligibility boundary
+
+`GET /api/student/review-eligibilities` returns the authenticated Student's own
+persisted eligible targets. `ReviewEligibilityService.list`, `canReview` and
+`requireReviewEligibility` share the same read-only rule. Future review submission
+must call the guard again; frontend highlighting is never authorization.
+
+Identity is Student + CourseOffering + exact academicTerm. CourseOffering fixes
+both Teacher and Course. Duplicate uploads and sections collapse into one target;
+distinct trimmed groupSections are sorted supporting metadata. Past terms remain
+eligible. No entitlement table, Review entity, form or submission endpoint exists.
+
+Evidence must be a persisted VerifiedCourse from an owned VALID upload with no
+pending outcome for that source entry. Incomplete evidence or a contradiction with
+its already-linked course/teacher fails closed. This integrity check does not
+search catalog candidates or invoke the US17 matcher. Reading never repairs or
+changes verification state. If evidence becomes stale, US17/18 reconciliation is
+still responsible for it. A future submission must enforce eligibility within its
+own transaction and coordinate with re-extraction if concurrent writes matter.
+
+The DTO includes safe courseId and teacherId so browse cards use stable identities,
+not name comparisons. Student-only highlighting lists the exact related course or
+teacher and term. The public catalog APIs, existing US17 grouping and US19 source
+statuses remain unchanged. US21–US24 are not implemented.

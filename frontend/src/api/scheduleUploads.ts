@@ -54,6 +54,21 @@ export function listVerifiedCourses(signal: AbortSignal) {
   return readSchedule<VerifiedCourse[]>('/api/student/verified-courses', signal);
 }
 
+export interface ReviewEligibility {
+  courseOfferingId: number;
+  courseId: number;
+  teacherId: number;
+  courseCode: string;
+  courseName: string;
+  teacherName: string;
+  academicTerm: string;
+  groupSections: string[];
+}
+
+export function listReviewEligibilities(signal: AbortSignal) {
+  return readSchedule<ReviewEligibility[]>('/api/student/review-eligibilities', signal);
+}
+
 async function readSchedule<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     credentials: 'same-origin', signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),

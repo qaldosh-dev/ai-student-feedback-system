@@ -54,8 +54,10 @@ export default function TeachersSection({ teachers, relationships, loading, erro
                 {teacher.name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('')}
               </div>
               <div>
-                <h3>{teacher.name}</h3>
-                <p>{teacher.department}</p>
+                <div className="catalog-card-main">
+                  <h3>{teacher.name}</h3>
+                  <p>{teacher.department}</p>
+                </div>
                 <VerifiedRelationships relationships={relationships?.get(teacher.id)} />
               </div>
             </li>

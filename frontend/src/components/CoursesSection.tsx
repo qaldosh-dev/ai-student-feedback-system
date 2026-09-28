@@ -50,8 +50,10 @@ export default function CoursesSection({ courses, relationships, loading, error,
         <ul className="card-grid course-grid">
           {courses.map((course) => (
             <li key={course.id} className={`course-card${relationships?.has(course.id) ? ' has-verified-relationship' : ''}`}>
-              <span className="course-code">{course.code}</span>
-              <h3>{course.name}</h3>
+              <div className="catalog-card-main">
+                <span className="course-code">{course.code}</span>
+                <h3>{course.name}</h3>
+              </div>
               <VerifiedRelationships relationships={relationships?.get(course.id)} />
             </li>
           ))}

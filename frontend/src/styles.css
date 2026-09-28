@@ -118,6 +118,8 @@ h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .schedule-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
 .schedule-card { display: grid; gap: 10px; overflow-wrap: anywhere; }
 .schedule-card h2 { font-size: 18px; letter-spacing: 0; }
+.schedule-card > .catalog-card-main { display: grid; gap: 10px; }
+.schedule-card > .leave-review-link { justify-self: start; }
 
 /* A relationship belongs to this student, course, teacher and term. */
 .teacher-card.has-verified-relationship,
@@ -127,3 +129,21 @@ h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .verified-relationships ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
 .verified-relationships li { line-height: 1.5; }
 .verified-relationships span { display: block; color: #536a7a; }
+.leave-review-link { display: inline-block; margin-top: 6px; padding: 5px 10px; border: 1px solid #b9cde3; border-radius: 6px; background: white; color: #234e89; font-size: 12px; text-decoration: none; }
+.leave-review-link:hover { background: #e8f2fc; }
+.leave-review-link:focus-visible { outline: 2px solid #225b99; outline-offset: 2px; }
+
+.course-card.selected-review-target { border-color: #3679ad; background: #f4faff; }
+
+.rating-input { border: 0; padding: 0; margin: 20px 0 0; min-width: 0; }
+.rating-input legend { font-weight: 600; }
+.rating-stars { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.rating-star { width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #64748b; font-size: 32px; cursor: pointer; }
+.rating-star.is-filled { color: #225b99; }
+.rating-star:hover { background: #e8f2fc; }
+.rating-star:focus-visible { outline: 2px solid #225b99; outline-offset: 2px; }
+.feedback-input { display: grid; gap: 8px; margin-top: 20px; }
+.feedback-input label { font-weight: 600; }
+.feedback-input textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 12px; border: 1px solid #cbd8e9; border-radius: 6px; font: inherit; color: #243d59; resize: vertical; }
+.feedback-input textarea:focus-visible { outline: 2px solid #225b99; outline-offset: 2px; }
+.review-draft-fields { border: 0; padding: 0; margin: 0; min-width: 0; }

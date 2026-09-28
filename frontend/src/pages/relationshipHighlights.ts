@@ -1,6 +1,6 @@
 import type { ReviewEligibility } from '../api/scheduleUploads';
 
-export interface RelationshipContext { key: string; label: string; term: string }
+export interface RelationshipContext { key: string; label: string; term: string; target: ReviewEligibility }
 
 // Identity comes from the backend's offering + term, never a course/teacher name alone.
 export function relationshipHighlights(rows: ReviewEligibility[], roles: readonly string[]) {
@@ -13,9 +13,9 @@ export function relationshipHighlights(rows: ReviewEligibility[], roles: readonl
     if (seen.has(key)) continue;
     seen.add(key);
     teachers.set(row.teacherId, [...(teachers.get(row.teacherId) ?? []),
-      { key, label: `${row.courseCode} — ${row.courseName}`, term: row.academicTerm }]);
+      { key, label: `${row.courseCode} — ${row.courseName}`, term: row.academicTerm, target: row }]);
     courses.set(row.courseId, [...(courses.get(row.courseId) ?? []),
-      { key, label: row.teacherName, term: row.academicTerm }]);
+      { key, label: row.teacherName, term: row.academicTerm, target: row }]);
   }
   return { teachers, courses };
 }

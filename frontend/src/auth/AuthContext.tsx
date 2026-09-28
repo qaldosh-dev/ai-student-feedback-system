@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react';
 import { getCurrentUser, signIn, signOut } from '../api/auth';
 import type { CurrentUser } from '../api/auth';
+import { clearReviewDrafts } from '../pages/reviewDraft';
 
 interface AuthState {
   currentUser: CurrentUser | null;
@@ -27,22 +28,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setChecking(true);
     setSessionError(false);
     getCurrentUser(controller.signal)
-      .then(user => { if (!controller.signal.aborted) setCurrentUser(user); })
+      .then(user => { if (!controller.signal.aborted) { if (!user) clearReviewDrafts(); setCurrentUser(user); } })
       .catch(() => { if (!controller.signal.aborted) setSessionError(true); })
       .finally(() => { if (!controller.signal.aborted) setChecking(false); });
     return () => controller.abort();
   }, [attempt]);
 
   async function login(email: string, password: string) {
-    setCurrentUser(await signIn(email, password));
+    const user = await signIn(email, password);
+    clearReviewDrafts();
+    setCurrentUser(user);
   }
 
   async function logout() {
     await signOut();
+    clearReviewDrafts();
     setCurrentUser(null);
   }
 
-  const expireSession = useCallback(() => setCurrentUser(null), []);
+  const expireSession = useCallback(() => { clearReviewDrafts(); setCurrentUser(null); }, []);
 
   return (
     <AuthContext.Provider value={{ currentUser, checking, sessionError,

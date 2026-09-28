@@ -1177,3 +1177,93 @@ The DTO includes safe courseId and teacherId so browse cards use stable identiti
 not name comparisons. Student-only highlighting lists the exact related course or
 teacher and term. The public catalog APIs, existing US17 grouping and US19 source
 statuses remain unchanged. US21–US24 are not implemented.
+
+## US21 — Select a review target
+
+Student Area now links to `/student/reviews/new`. This protected Student page reads
+only the existing US20 eligibility API. It displays one option per server-provided
+CourseOffering + academicTerm, with aggregated groups as context. Backend logic,
+API contracts and persistence are unchanged.
+
+Selection is represented by `courseOfferingId` and `academicTerm` query parameters.
+Opening, refreshing or changing that URL loads the authenticated student's current
+eligibilities again before displaying a selected summary. Missing, malformed,
+duplicate, ambiguous or unavailable identity values produce a safe unavailable
+message. No course/teacher names or ownership values from the URL are trusted.
+Account/URL changes remount the request state and abort stale requests.
+
+This is selection only: no Review table, rating, text input or submission. Future
+submission must still call the US20 backend eligibility guard again. The existing
+Verified Courses page, schedule status and public browse highlights are unchanged.
+
+## US22 — Give a rating
+
+The URL-only draft behavior below describes US22; US23 supersedes draft storage.
+
+The selected US21 target now shows one overall rating with five keyboard-accessible
+star buttons and a numeric value. Only exact integers 1–5 are accepted. The optional
+`rating` query parameter belongs to the same CourseOffering + academicTerm URL;
+refresh restores it only after US20 validates the target. Invalid/empty/repeated
+rating parameters show no rating without rejecting a valid target.
+
+Selecting a different target creates a fresh URL without rating. Selecting the same
+target keeps its rating. Star changes replace the current URL entry and retain
+keyboard focus; they do not refetch or remount the target. Account/target changes
+and full refresh still load current server eligibility. No localStorage, POST,
+backend changes, rating table, Review persistence, text feedback or submission.
+
+## US23 — Write text feedback
+
+The selected eligible target has one rating and one labelled feedback textarea.
+Drafts are tab-local `sessionStorage` values keyed by CourseOffering ID + exact
+academicTerm, never by teacher/course alone or by group. Only `{ rating, text }`
+is stored. Changing targets preserves both values for a later return; refreshing
+rechecks current US20 server eligibility before mounting the draft editor.
+
+Session storage is the draft source of truth. A valid existing stored rating wins
+over a conflicting URL rating; a legacy URL rating initializes only a missing
+valid stored rating. Star/text edits update storage, not the URL or backend.
+Malformed JSON, invalid ratings and non-string/oversized stored text are discarded.
+The textarea allows up to 2000 characters and preserves punctuation/whitespace;
+whitespace-only text is incomplete, but never prevents switching targets.
+Blocked/full storage shows a warning instead of claiming refresh persistence.
+
+Successful login/logout, detected unauthenticated state and session expiry clear
+review drafts in that tab without clearing unrelated session storage. No account
+identifier, authentication token or eligibility is stored with drafts. Closing the
+tab ends their normal lifetime. Nothing is sent or saved as a Review: no submission
+endpoint, Review/ReviewDraft table, Submit button or AI moderation exists in US23.
+
+## US24 — Submit feedback anonymously
+
+US24 adds `POST /api/student/reviews` with the existing session, STUDENT role and
+CSRF protection. Send exactly `{ courseOfferingId, academicTerm, rating, text }`.
+The backend rejects extra fields (including author IDs), non-integer JSON ratings,
+ratings outside 1–5, empty/whitespace-only text, and text longer than 2000 characters.
+The exact academic term is preserved; only outer feedback whitespace is trimmed.
+US20 eligibility is checked again inside the creation transaction.
+
+The additive `reviews` table holds id, author_id (User FK), course_offering_id (FK),
+academic_term, rating, text and created_at. Normal Hibernate schema update creates
+it. No catalog or verification rows are changed. No author/target/term uniqueness
+rule is added yet. A 201 response contains only reviewId, submitted,
+courseOfferingId, academicTerm and rating; entities and author identity are never
+returned. Author identity is retained internally for later audit/history rules.
+There is no public/teacher review read endpoint and no identity-visibility toggle.
+
+The existing draft editor now enables Submit Review only for a complete draft,
+disables editing/submission while pending, and shows a safe success/error message.
+Success clears only the submitted target's session draft and removes legacy URL
+rating for the current target. Failure retains the draft. A network timeout cannot
+prove whether the server committed; its message says submission was not confirmed.
+There is no automatic retry. Single in-flight protection is not US28 deduplication.
+No review status/history UI, AI moderation or US25–US29 behavior is implemented.
+
+### Browse → Leave Review
+
+Each Student-specific eligible relationship in teacher/course cards has a compact
+Leave Review link. It uses the same CourseOffering + academicTerm query builder as
+the existing review page, which rechecks eligibility before opening the draft.
+All eligible relationships are listed; different teachers/courses/terms retain
+separate actions. Card main content remains separate from review links, without
+introducing profile routes. Student Area's existing entry point is unchanged.

@@ -5,6 +5,7 @@ import { listVerifiedCourses } from '../api/scheduleUploads';
 import type { VerifiedCourse } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
 import { groupVerifiedCourses } from './verifiedCourseGroups';
+import { reviewTargetQuery } from './reviewTargetQuery';
 
 export default function VerifiedCoursesPage() {
   const { currentUser } = useAuth();
@@ -32,8 +33,6 @@ function VerifiedCourses() {
     return () => controller.abort();
   }, [attempt, expireSession]);
 
-  const courses = groupVerifiedCourses(rows);
-
   return <main id="main" className="container role-area">
     <Link to="/student">Back to Student Area</Link>
     <h1>Verified Courses</h1>
@@ -41,17 +40,28 @@ function VerifiedCourses() {
       Academic term and group come from your schedule; the catalog does not independently confirm enrollment.</p>
     {loading ? <p role="status">Loading verified courses…</p> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
-    </div> : courses.length === 0 ? <p className="state-message">No verified courses are available yet.</p> : <>
+    </div> : <VerifiedCourseCards rows={rows} />}
+  </main>;
+}
+
+export function VerifiedCourseCards({ rows }: { rows: readonly VerifiedCourse[] }) {
+  const courses = groupVerifiedCourses(rows);
+  return courses.length === 0 ? <p className="state-message">No verified courses are available yet.</p> : <>
       <p>{courses.length} verified courses</p>
       <ul className="schedule-list">
         {courses.map(({ key, course: row, uploadIds, groupSections }) => <li key={key} className="course-card schedule-card">
-          <h2>{row.courseCode} — {row.courseName}</h2>
-          <p><strong>Teacher:</strong> {row.teacherName}</p>
-          <p><strong>Group / Section:</strong> {groupSections.join(', ')}</p>
-          <p><strong>Academic Term:</strong> {row.academicTerm}</p>
-          <p>Verified from {uploadIds.length} schedule {uploadIds.length === 1 ? 'upload' : 'uploads'}</p>
+          <div className="catalog-card-main">
+            <h2>{row.courseCode} — {row.courseName}</h2>
+            <p><strong>Teacher:</strong> {row.teacherName}</p>
+            <p><strong>Group / Section:</strong> {groupSections.join(', ')}</p>
+            <p><strong>Academic Term:</strong> {row.academicTerm}</p>
+            <p>Verified from {uploadIds.length} schedule {uploadIds.length === 1 ? 'upload' : 'uploads'}</p>
+          </div>
+          <Link className="leave-review-link" to={`/student/reviews/new?${reviewTargetQuery(row)}`}
+            aria-label={`Leave review for ${row.courseCode} with ${row.teacherName}, ${row.academicTerm}`}>
+            Leave Review
+          </Link>
         </li>)}
       </ul>
-    </>}
-  </main>;
+    </>;
 }

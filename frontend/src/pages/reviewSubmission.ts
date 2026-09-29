@@ -19,9 +19,10 @@ export function createReviewSubmission(target: ReviewEligibility) {
       pending = true;
       try {
         const response = await submitReview({ courseOfferingId: target.courseOfferingId, academicTerm: target.academicTerm, rating: draft.rating!, text: draft.text });
-        if (!response.submitted || response.courseOfferingId !== target.courseOfferingId || response.academicTerm !== target.academicTerm)
+        if (!response.submitted || !Number.isSafeInteger(response.reviewId) || response.reviewId <= 0 || response.status !== 'SUBMITTED'
+            || response.courseOfferingId !== target.courseOfferingId || response.academicTerm !== target.academicTerm)
           throw new Error('Submission could not be confirmed. Your draft has been kept.');
-        return { draftCleared: clearDraft(target) };
+        return { draftCleared: clearDraft(target), reviewId: response.reviewId, status: response.status };
       } finally { pending = false; }
     },
   };

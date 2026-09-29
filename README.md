@@ -1257,7 +1257,7 @@ Success clears only the submitted target's session draft and removes legacy URL
 rating for the current target. Failure retains the draft. A network timeout cannot
 prove whether the server committed; its message says submission was not confirmed.
 There is no automatic retry. Single in-flight protection is not US28 deduplication.
-No review status/history UI, AI moderation or US25–US29 behavior is implemented.
+US25 adds the single-review status view below; history and moderation remain future work.
 
 ### Browse → Leave Review
 
@@ -1267,3 +1267,31 @@ the existing review page, which rechecks eligibility before opening the draft.
 All eligible relationships are listed; different teachers/courses/terms retain
 separate actions. Card main content remains separate from review links, without
 introducing profile routes. Student Area's existing entry point is unchanged.
+
+## US25 — Review submission status
+
+Reviews now persist a dedicated `ReviewStatus.SUBMITTED`. Creation assigns it in
+the same transaction; the submission response also includes `status`. Existing
+reviews are retained. The local database was adapted with this additive command:
+
+```sql
+ALTER TABLE public.reviews
+ADD COLUMN status varchar(32) NOT NULL DEFAULT 'SUBMITTED';
+```
+
+Run that command only when the column is absent. The entity also specifies the
+database default so Hibernate can add the column safely on an older database.
+The default supports an older running application during the upgrade; normal
+Java creation explicitly initializes the field. No moderation transition occurs.
+
+`GET /api/student/reviews/{reviewId}/status` returns one Review's safe status and
+course/teacher/term/rating summary. It requires STUDENT and uses the session
+principal to query by both review ID and owner. Missing and other users' reviews
+both return 404. It does not rematch schedules, rerun eligibility, or expose
+author identifiers, email, feedback text, or schedule source identifiers.
+
+Successful submission clears only that target's draft and opens
+`/student/reviews/{reviewId}/status`. Refresh/direct navigation fetches persisted
+data from the API, independent of draft or navigation state. This is a single
+submission view, not My Reviews/history; Submitted does not mean published,
+approved or AI-checked. No edit, duplicate prevention, or aggregation is added.

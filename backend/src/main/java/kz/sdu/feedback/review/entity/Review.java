@@ -24,6 +24,10 @@ public class Review {
     private String text;
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    @org.hibernate.annotations.ColumnDefault("'SUBMITTED'")
+    private ReviewStatus status = ReviewStatus.SUBMITTED;
 
     protected Review() { }
     public Review(User author, CourseOffering offering, String academicTerm, int rating, String text) {
@@ -41,4 +45,5 @@ public class Review {
     public int getRating() { return rating; }
     public String getText() { return text; }
     public Instant getCreatedAt() { return createdAt; }
+    public ReviewStatus getStatus() { return status; }
 }

@@ -6,7 +6,7 @@ import RatingInput from './RatingInput';
 import { completeDraft, createReviewSubmission } from '../pages/reviewSubmission';
 
 // Mounted only after the current server eligibility response authorizes this target.
-export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { target: ReviewEligibility; urlRating: number | null; onSubmitted?: () => void }) {
+export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { target: ReviewEligibility; urlRating: number | null; onSubmitted?: (reviewId: number) => void }) {
   const [draft, setDraft] = useState(() => loadDraft(target, urlRating));
   const [storageFailed, setStorageFailed] = useState(false);
   const [submission] = useState(() => createReviewSubmission(target));
@@ -32,7 +32,7 @@ export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { 
       const result = await submission.submit(draft);
       if (result && mounted.current) {
         setSubmitted(true); setStorageFailed(!result.draftCleared);
-        onSubmitted?.();
+        onSubmitted?.(result.reviewId);
       }
     } catch (failure) {
       if (mounted.current) setError(failure instanceof Error && failure.name !== 'TimeoutError' && failure.name !== 'TypeError'

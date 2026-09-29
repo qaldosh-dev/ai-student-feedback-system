@@ -16,6 +16,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class ReviewController {
     private final ReviewService service;
     public ReviewController(ReviewService service) { this.service = service; }
+    @GetMapping("/{reviewId}/status")
+    public ReviewStatusResponse status(@PathVariable Long reviewId, Authentication authentication) {
+        return service.status(authentication.getName(), reviewId);
+    }
     @PostMapping
     public ResponseEntity<ReviewSubmissionResponse> submit(@RequestBody JsonNode input, Authentication authentication) {
         return ResponseEntity.status(201).body(service.submit(authentication.getName(), SubmitReviewRequest.fromJson(input)));

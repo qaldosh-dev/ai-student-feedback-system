@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
 import { listReviewEligibilities } from '../api/scheduleUploads';
 import type { ReviewEligibility } from '../api/scheduleUploads';
@@ -31,13 +31,14 @@ export function resolveReviewTarget(rows: ReviewEligibility[], search: string) {
 export default function ReviewTargetPage() {
   const { currentUser } = useAuth();
   const [query, setQuery] = useSearchParams();
+  const navigate = useNavigate();
   const search = query.toString();
   const identity = new URLSearchParams(query);
   identity.delete('rating');
   // Recheck changed targets/accounts, but retain keyboard focus when only a star changes.
   return <ReviewTargets key={`${currentUser?.id}:${identity.toString()}`} search={search}
     onSelect={target => setQuery(reviewTargetQuery(target))}
-    onSubmitted={target => setQuery(reviewTargetQuery(target), { replace: true })} />;
+    onSubmitted={reviewId => navigate(`/student/reviews/${reviewId}/status`, { replace: true })} />;
 }
 
 function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
@@ -74,7 +75,7 @@ function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
 interface SelectionProps {
   search: string;
   onSelect: (target: ReviewEligibility) => void;
-  onSubmitted?: (target: ReviewEligibility) => void;
+  onSubmitted?: (reviewId: number) => void;
 }
 
 function TargetDetails({ target }: { target: ReviewEligibility }) {
@@ -96,7 +97,7 @@ export function ReviewTargetSelection({ rows, search, onSelect, onSubmitted }: S
     {selection.kind === 'selected' && <section className="state-message area-details" aria-labelledby="selected-target-title">
       <h2 id="selected-target-title">Selected review target</h2>
       <TargetDetails target={selection.target} />
-      <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={() => onSubmitted?.(selection.target)} />
+      <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} />
     </section>}
     {rows.length === 0 ? <div className="state-message">
       <p>No verified courses are currently available for review.</p>

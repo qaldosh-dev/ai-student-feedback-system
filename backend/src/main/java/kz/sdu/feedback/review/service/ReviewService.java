@@ -42,5 +42,12 @@ public class ReviewService {
         String text = request.text().replaceAll("(?U)^\\s+|\\s+$", "");
         return ReviewSubmissionResponse.from(reviews.saveAndFlush(new Review(author, offering, request.academicTerm(), request.rating(), text)));
     }
+    @Transactional(readOnly = true)
+    public ReviewStatusResponse status(String authenticatedEmail, Long reviewId) {
+        // Submission is already persisted; reading it does not rerun schedule matching or eligibility.
+        return ReviewStatusResponse.from(reviews.findByIdAndAuthorEmail(reviewId, authenticatedEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found.")));
+    }
+
     private ResponseStatusException invalid(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, message); }
 }

@@ -75,9 +75,11 @@ class ReviewSubmissionTest {
     }
     @Test void persistsExactTargetAndSessionAuthorWithAnonymousResponse() throws Exception {
         var response = send(body()).andExpect(status().isCreated()).andExpect(jsonPath("$.submitted").value(true)).andReturn().getResponse().getContentAsString();
-        assertEquals(Set.of("reviewId", "submitted", "courseOfferingId", "academicTerm", "rating"), json.readTree(response).propertyNames());
+        assertEquals(Set.of("reviewId", "submitted", "courseOfferingId", "academicTerm", "rating", "status"), json.readTree(response).propertyNames());
+        assertEquals("SUBMITTED", json.readTree(response).get("status").asText());
         assertFalse(response.contains(EMAIL)); assertFalse(response.contains("unused"));
         var review = reviews.findAll().getFirst();
+        assertEquals(kz.sdu.feedback.review.entity.ReviewStatus.SUBMITTED, review.getStatus());
         assertEquals(author.getId(), review.getAuthor().getId()); assertEquals(offering.getId(), review.getCourseOffering().getId());
         assertEquals(TERM, review.getAcademicTerm()); assertEquals(4, review.getRating());
         assertEquals("Clear explanations.\nUseful examples!", review.getText()); assertNotNull(review.getCreatedAt());

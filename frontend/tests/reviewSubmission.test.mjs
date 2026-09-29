@@ -21,7 +21,7 @@ function setup() {
   saveDraft(target,draft); saveDraft(other,{rating:2,text:'Other target'}); return data;
 }
 const button=(value=draft,pending=false)=>ReviewSubmitButton({draft:value,pending,onSubmit(){}});
-function response(status=201, overrides={}) { return {ok:status===201,status,json:async()=>({reviewId:7,submitted:true,courseOfferingId:1,academicTerm:target.academicTerm,rating:4,...overrides})}; }
+function response(status=201, overrides={}) { return {ok:status===201,status,json:async()=>({reviewId:7,status:'SUBMITTED',submitted:true,courseOfferingId:1,academicTerm:target.academicTerm,rating:4,...overrides})}; }
 function network(submit) {
   globalThis.fetch=async(path,options)=>path==='/api/auth/csrf'
     ? {ok:true,json:async()=>({headerName:'X-CSRF-TOKEN',token:'test-only'})} : submit(path,options);
@@ -44,6 +44,7 @@ test('submission sends only exact target/rating/text with CSRF and session crede
   assert.equal(sent.headers['X-CSRF-TOKEN'],'test-only');
   assert.deepEqual(JSON.parse(sent.body),{courseOfferingId:1,academicTerm:target.academicTerm,...draft});
   assert.equal(result.draftCleared,true); assert.equal(data.has(draftKey(target)),false);
+  assert.equal(result.reviewId,7); assert.equal(result.status,'SUBMITTED');
   assert.deepEqual(loadDraft(other,null),{rating:2,text:'Other target'});
 });
 test('one in-flight action cannot double-submit and button is disabled while pending',async()=>{
@@ -66,6 +67,14 @@ test('network failure or unexpected success target preserves draft',async()=>{
   network(async()=>response(201,{courseOfferingId:999}));
   await assert.rejects(createReviewSubmission(target).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);
 });
+
+for (const overrides of [{reviewId:0},{reviewId:null},{status:null},{status:'PUBLISHED'}])
+  test(`unconfirmed submission identity/status preserves drafts: ${JSON.stringify(overrides)}`,async()=>{
+    setup(); network(async()=>response(201,overrides));
+    await assert.rejects(createReviewSubmission(target).submit(draft));
+    assert.deepEqual(loadDraft(target,null),draft);
+    assert.equal(loadDraft(other,null).text,'Other target');
+  });
 test('tampered target cannot expose Submit despite stored draft',()=>{
   setup(); const html=renderToStaticMarkup(createElement(ReviewTargetSelection,{rows:[other],search:reviewTargetQuery(target).toString(),onSelect(){}}));
   assert.match(html,/not available for review/); assert.doesNotMatch(html,/Submit Review|textarea/);

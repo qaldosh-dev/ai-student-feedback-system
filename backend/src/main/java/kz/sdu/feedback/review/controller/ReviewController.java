@@ -16,6 +16,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class ReviewController {
     private final ReviewService service;
     public ReviewController(ReviewService service) { this.service = service; }
+    @GetMapping
+    public java.util.List<OwnReviewResponse> history(Authentication authentication, @RequestParam Map<String, String> parameters) {
+        if (!parameters.isEmpty()) throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Review history does not accept query parameters.");
+        return service.history(authentication.getName());
+    }
     @GetMapping("/{reviewId}/status")
     public ReviewStatusResponse status(@PathVariable Long reviewId, Authentication authentication) {
         return service.status(authentication.getName(), reviewId);
@@ -23,6 +28,14 @@ public class ReviewController {
     @PostMapping
     public ResponseEntity<ReviewSubmissionResponse> submit(@RequestBody JsonNode input, Authentication authentication) {
         return ResponseEntity.status(201).body(service.submit(authentication.getName(), SubmitReviewRequest.fromJson(input)));
+    }
+    @PutMapping("/{reviewId}/correction")
+    public ReviewSubmissionResponse correct(@PathVariable Long reviewId, @RequestBody JsonNode input, Authentication authentication) {
+        return service.correct(authentication.getName(), reviewId, CorrectReviewRequest.fromJson(input));
+    }
+    @PutMapping("/{reviewId}")
+    public ReviewSubmissionResponse updatePublished(@PathVariable Long reviewId, @RequestBody JsonNode input, Authentication authentication) {
+        return service.updatePublished(authentication.getName(), reviewId, UpdateReviewRequest.fromJson(input));
     }
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> rejected(ResponseStatusException error) {

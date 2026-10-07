@@ -61,6 +61,15 @@ for(const status of [400,401,403,500]) test(`HTTP ${status} keeps draft and expo
   await assert.rejects(createReviewSubmission(target).submit(draft),error=>!error.message.includes('SQL'));
   assert.deepEqual(loadDraft(target,null),draft); assert.equal(loadDraft(other,null).text,'Other target');
 });
+test('duplicate conflict shows friendly feedback, never succeeds, and keeps both drafts', async () => {
+  setup(); let calls = 0;
+  network(async () => { calls++; return response(409); });
+  const action = createReviewSubmission(target);
+  await assert.rejects(action.submit(draft), /You already submitted feedback for this course offering and term/);
+  assert.deepEqual(loadDraft(target,null), draft);
+  assert.deepEqual(loadDraft(other,null), {rating:2,text:'Other target'});
+  assert.equal(action.pending, false); assert.equal(calls, 1);
+});
 test('network failure or unexpected success target preserves draft',async()=>{
   setup(); network(async()=>{throw new TypeError('network');});
   await assert.rejects(createReviewSubmission(target).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);

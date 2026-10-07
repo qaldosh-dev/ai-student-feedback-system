@@ -74,7 +74,7 @@ class ReviewStatusTest {
                 .andExpect(jsonPath("$.teacherName").value("Alex Person"))
                 .andExpect(jsonPath("$.academicTerm").value("2026-2027 1 term"))
                 .andExpect(jsonPath("$.rating").value(4)).andReturn().getResponse().getContentAsString();
-        assertEquals(Set.of("reviewId", "status", "submittedAt", "courseOfferingId", "courseCode", "courseName", "teacherName", "academicTerm", "rating"), json.readTree(response).propertyNames());
+        assertEquals(Set.of("reviewId", "status", "submittedAt", "courseOfferingId", "courseCode", "courseName", "teacherName", "academicTerm", "rating", "moderatedAt", "moderationReasons", "text"), json.readTree(response).propertyNames());
         assertFalse(response.contains(EMAIL)); assertFalse(response.contains("unused"));
         assertEquals(service.status(EMAIL, reviewId), service.status(EMAIL, reviewId));
         em.flush(); em.clear();
@@ -101,7 +101,8 @@ class ReviewStatusTest {
     @Test void studentTeacherCanReadOwnReview() throws Exception {
         mvc.perform(get(url()).with(user(EMAIL).roles("STUDENT","TEACHER"))).andExpect(status().isOk());
     }
-    @Test void noHistoryEndpoint() throws Exception {
-        mvc.perform(get("/api/student/reviews").with(user(EMAIL).roles("STUDENT"))).andExpect(status().isMethodNotAllowed());
+    @Test void ownHistoryAvailable() throws Exception {
+        mvc.perform(get("/api/student/reviews").with(user(EMAIL).roles("STUDENT"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reviewId").value(reviewId));
     }
 }

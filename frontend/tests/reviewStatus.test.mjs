@@ -12,13 +12,29 @@ afterEach(() => { globalThis.fetch = originalFetch; });
 const { ReviewStatusContent } = await server.ssrLoadModule('/src/pages/ReviewStatusPage.tsx');
 const { getReviewStatus } = await server.ssrLoadModule('/src/api/reviews.ts');
 const data = { reviewId: 7, status: 'SUBMITTED', submittedAt: '2026-09-28T07:00:00Z', courseOfferingId: 100,
-  courseCode: 'ABC 100', courseName: 'Alpha Subject', teacherName: 'Alex Example', academicTerm: '2026-2027 1 term', rating: 4 };
+  courseCode: 'ABC 100', courseName: 'Alpha Subject', teacherName: 'Alex Example', academicTerm: '2026-2027 1 term', rating: 4,
+  moderatedAt: null, moderationReasons: [], text: null };
 const render = (props = {}) => renderToStaticMarkup(createElement(ReviewStatusContent, { data, loading: false, error: '', onRetry() {}, ...props }));
 
-test('persisted status shows course, teacher, term, rating and Submitted, not publication or moderation', () => {
+test('Submitted remains awaiting moderation and never implies publication', () => {
   const html = render();
   for (const text of ['Your review was submitted successfully.', 'ABC 100', 'Alpha Subject', 'Alex Example', '2026-2027 1 term', '4 / 5', 'Submission Status:', 'Submitted']) assert.ok(html.includes(text));
   assert.doesNotMatch(html, /Published|Approved|AI checked|Edit|Correct|My Reviews|history|<form|textarea|button/);
+  assert.match(html, /awaiting moderation/);
+});
+test('Published shows successful moderation without correction controls', () => {
+  const html = render({ data: { ...data, status: 'PUBLISHED', moderatedAt: '2026-10-06T01:00:00Z' } });
+  assert.match(html, /Published/); assert.match(html, /passed moderation/);
+  assert.doesNotMatch(html, /awaiting moderation|<form|textarea|button/);
+});
+test('Needs correction displays backend-defined reasons and Edit Feedback, without provider internals', () => {
+  const html = render({ data: { ...data, status: 'NEEDS_CORRECTION', text: 'Flagged feedback', moderationReasons: [
+    { category: 'THREAT', message: 'Remove threatening language.' },
+    { category: 'PERSONAL_INSULT', message: 'Remove personal insults and focus on the learning experience.' },
+  ], rawResponse: 'private provider payload', email: 'private@example.test' } });
+  assert.match(html, /Needs correction/); assert.match(html, /Remove threatening language/); assert.match(html, /Remove personal insults/);
+  assert.match(html, /Edit Feedback/);
+  assert.doesNotMatch(html, /private provider|private@example|<form|textarea/);
 });
 test('only safe explicit DTO fields are rendered even if extra identity data arrives', () => {
   const html = render({ data: { ...data, authorId: 123456, email: 'private@example.test', author: { name: 'Private Person' }, text: 'Private feedback' } });

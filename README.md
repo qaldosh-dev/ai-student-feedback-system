@@ -1257,7 +1257,7 @@ Success clears only the submitted target's session draft and removes legacy URL
 rating for the current target. Failure retains the draft. A network timeout cannot
 prove whether the server committed; its message says submission was not confirmed.
 There is no automatic retry. Single in-flight protection is not US28 deduplication.
-US25 adds the single-review status view below; history and moderation remain future work.
+US25 adds the single-review status view below; US26 adds moderation. History remains future work.
 
 ### Browse → Leave Review
 
@@ -1282,7 +1282,7 @@ ADD COLUMN status varchar(32) NOT NULL DEFAULT 'SUBMITTED';
 Run that command only when the column is absent. The entity also specifies the
 database default so Hibernate can add the column safely on an older database.
 The default supports an older running application during the upgrade; normal
-Java creation explicitly initializes the field. No moderation transition occurs.
+Java creation explicitly initializes the field. US26 adds the transitions described below.
 
 `GET /api/student/reviews/{reviewId}/status` returns one Review's safe status and
 course/teacher/term/rating summary. It requires STUDENT and uses the session
@@ -1295,3 +1295,210 @@ Successful submission clears only that target's draft and opens
 data from the API, independent of draft or navigation state. This is a single
 submission view, not My Reviews/history; Submitted does not mean published,
 approved or AI-checked. No edit, duplicate prevention, or aggregation is added.
+
+## US26 — AI moderation before publication
+
+Every valid new review is committed as `SUBMITTED` using the existing eligibility,
+ownership, rating, feedback and CSRF checks. A synchronous Spring AFTER_COMMIT
+listener then makes **one** moderation attempt. It is an in-process callback, not
+a queue/background job. The provider call cannot roll back the submitted review.
+A separate short transaction saves a validated result:
+
+- `ACCEPT` → `PUBLISHED`, no violation categories, `moderatedAt` set.
+- `NEEDS_CORRECTION` with known categories → `NEEDS_CORRECTION`, categories and
+  `moderatedAt` saved.
+- Missing key, timeout, API/network failure, blocked/truncated output, invalid JSON
+  or inconsistent result → remains `SUBMITTED`; no successful moderation timestamp.
+
+The POST response remains the original `SUBMITTED` receipt. The existing status
+page immediately reads the current outcome from GET `/api/student/reviews/{id}/status`.
+The owner-only DTO now also contains `moderatedAt` and `moderationReasons`, each
+with a fixed category and backend-defined friendly message. No author identity,
+raw provider response, feedback text or prompt is returned. Refresh/direct URLs
+still read the backend. There are no edit/resubmit controls or public review lists.
+
+`ModerationProvider` accepts only the complete feedback text (maximum 2000
+characters, no word limit). Rating, account and catalog metadata are never sent.
+The Gemini adapter sends the publication policy as a separate system instruction
+and treats feedback as untrusted data. Negative criticism is allowed. The six
+categories are `PERSONAL_INSULT`, `THREAT`, `HATE_OR_DISCRIMINATION`,
+`PERSONAL_INFORMATION`, `SPAM_OR_IRRELEVANT`, and `ABUSIVE_LANGUAGE`.
+Structured JSON is checked again on the backend, including allowed enum values
+and decision/category consistency. Policy behavior is probabilistic and still
+requires a synthetic live check; mocked tests do not prove real model accuracy.
+
+Configure **backend** environment variables in the existing IntelliJ run configuration:
+
+- `GEMINI_API_KEY`: your Google AI Studio key; never place its value in source or Git.
+- `GEMINI_MODEL`: optional, defaults to `gemini-3.5-flash-lite` as requested.
+
+The backend uses the Gemini Developer API `generateContent` REST endpoint and
+`responseJsonSchema` ([Google API reference](https://ai.google.dev/api/generate-content)).
+No SDK/dependency was added. Connection timeout is 3 seconds; request timeout is
+8 seconds (`app.moderation.gemini.timeout-ms`, bounded to 100 ms–10 seconds).
+No automatic retry occurs. Missing credentials do not prevent startup or tests.
+Restart the backend after configuring environment variables. Existing SUBMITTED
+reviews are **not** automatically moderated on startup or on status reads.
+
+Schema additions: nullable `reviews.moderated_at` and an element-collection table
+`review_moderation_categories` with a review FK and unique (review_id, category).
+This stores only the current categories, not moderation history. Existing reviews
+retain their status, text, rating, author and target. Standard Hibernate update can
+add these fields; if an older database has a status CHECK constraint, inspect and
+extend that constraint to the three allowed statuses before serving new submissions.
+
+For the current local database, these additive statements were executed once after
+confirming both schema additions were absent (do not rerun blindly):
+
+```sql
+ALTER TABLE public.reviews ADD COLUMN moderated_at timestamp(6) with time zone;
+CREATE TABLE public.review_moderation_categories (
+  review_id bigint NOT NULL REFERENCES public.reviews(id),
+  category varchar(40) NOT NULL,
+  CONSTRAINT uk_review_moderation_category UNIQUE (review_id, category)
+);
+```
+
+There was no restrictive status CHECK constraint to change. The five existing
+reviews remain SUBMITTED with no moderation timestamp/categories.
+
+Automated moderation tests use H2 and fake providers, never real Gemini. Configure
+the key and use synthetic feedback only for a live provider check. No US27–US30,
+sentiment analysis, topics, summaries or admin moderation were added.
+
+## US27 — Correct flagged feedback
+
+`PUT /api/student/reviews/{reviewId}/correction` accepts exactly `{ "text": "..." }`
+with the existing Student session and CSRF token. Only the authenticated owner of
+a `NEEDS_CORRECTION` review can correct it. Other owners and missing IDs both
+receive the same 404; SUBMITTED/PUBLISHED reviews return 409. A database row lock
+keeps the status check and update together for concurrent correction requests.
+This is correction safety, not duplicate prevention for new review submissions.
+
+The same Review ID is updated. Author, rating, CourseOffering, academicTerm and
+createdAt remain unchanged. Initial submission and correction share the same
+required/nonblank/2000-character validation and outer-whitespace trimming.
+Extra request fields are rejected. There is no word limit or new schema/history.
+
+Correction resets the review to SUBMITTED, clears old categories/moderatedAt,
+and commits before invoking the unchanged US26 moderation listener/provider.
+The PUT returns 200 with the existing SUBMITTED receipt; the status GET reads
+the latest outcome. Provider failure preserves the corrected text as SUBMITTED,
+without stale reasons. Successful moderation replaces reasons with the new result.
+There is no new Gemini prompt, client or retry mechanism.
+
+The existing owner-only status DTO includes `text` for NEEDS_CORRECTION only
+(null otherwise), never author identity. The status page offers **Edit Feedback**,
+preloads that text, displays the 2000-character counter and keeps reasons visible.
+**Submit Corrected Feedback** disables editing while pending and reloads status
+from the backend. PUBLISHED/SUBMITTED hide the editor; a new NEEDS_CORRECTION
+result allows another edit with new reasons. Unsent corrections live only in
+component state; refreshing discards unsaved edits and reloads persisted text.
+After a network error, refresh status before retrying because the write may have
+committed. No automatic retry occurs.
+
+Tests use synthetic H2 data and the existing fake ModerationProvider, including
+same-row identity, state/ownership/CSRF checks, provider failure after commit and
+overlapping requests while moderation is running. See US28 below for new-review
+duplicate prevention and the separate published-review update endpoint.
+
+## US28 — One review per target and published-review updates
+
+The duplicate key is **author + CourseOffering + academicTerm**. Every status
+counts; rating, text, section and repeated schedule evidence do not change it.
+POST `/api/student/reviews` still requires authoritative eligibility. It locks the
+author row until commit, checks the key and returns safe HTTP 409 for a duplicate.
+This serializes concurrent submissions from the same author across application
+instances. The lock is released before the existing moderation provider runs.
+The frontend shows a friendly conflict message and preserves drafts.
+
+### Local database constraint installed
+
+The original preflight found two duplicate groups (Offerings 1293 and 1482).
+The user manually reviewed and removed obsolete test reviews before this final
+schema step. Independent re-check on 2026-10-07 confirmed **zero duplicate groups
+and six reviews**. The unchanged `backend/sql/us28-review-uniqueness.sql` was then
+applied to local PostgreSQL, installing:
+
+```sql
+CONSTRAINT uk_review_author_offering_term
+UNIQUE (author_id, course_offering_id, academic_term)
+```
+
+PostgreSQL also created the same-named unique B-tree index. Section, rating, text
+and status are not part of this key. A duplicate insert in a rolled-back test
+transaction was rejected with SQLSTATE 23505 by this exact constraint. An explicit
+temporary ID avoided advancing the review sequence. No rows were retained by the
+test, and no existing reviews or moderation categories were changed by this step.
+Review count stayed six; catalog counts stayed 506 / 903 / 1741.
+
+The current packaged backend started against real PostgreSQL with Hibernate
+`ddl-auto=validate`, seed disabled and an isolated temporary port. Public catalog
+GETs succeeded; the temporary process was stopped. No code or SQL definition
+changed, so the already-passing 475-test suite was not rerun for this schema step.
+
+The script is a **once-only** manual schema operation, not an application startup
+action; do not rerun it on this database. For another database, inspect duplicates
+and existing constraints first. The script checks under a table lock and aborts
+if duplicates remain; it never cleans up rows. The application author lock and
+database uniqueness now both protect submissions. A conflict with the named
+constraint becomes safe HTTP 409; unrelated integrity errors are not reported as
+duplicates. Existing isolated tests cover concurrent and direct repository writes.
+
+### Backend update capability (no general edit UI yet)
+
+`PUT /api/student/reviews/{reviewId}` accepts exactly
+`{ "rating": 4, "text": "Updated feedback..." }` with the existing Student
+session and CSRF token. Only the author of a PUBLISHED review may use it.
+Other owners/missing IDs receive identical 404 responses; SUBMITTED and
+NEEDS_CORRECTION return 409. Rating remains integer 1–5; text remains required,
+nonblank and at most 2000 characters, with outer whitespace trimmed.
+
+The same review row is updated: ID, author, target, term and createdAt cannot
+change. A row lock protects the status check/update. New rating/text and SUBMITTED
+status are committed with old moderation categories/time cleared, then the same
+US26 event listener/provider moderates only the feedback text. The response is
+200 with the initial SUBMITTED receipt; the status GET reads the latest outcome.
+Provider failure leaves the updated review saved as SUBMITTED. If moderation
+flags it, the existing US27 text-only correction flow remains available.
+
+No My Reviews/history page, general Edit Review button, revision tables or US29+
+features were added. Existing development data, catalog and authentication are
+unchanged. Automated tests use synthetic data and fake moderation, never Gemini.
+
+## US29 — My Reviews
+
+Student Area now links to `/student/reviews` (**My Reviews**), protected by the
+existing STUDENT route guard. `GET /api/student/reviews` uses the authenticated
+session only; query parameters (including authorId/userId) are rejected. The
+repository filters by author in SQL and fetches the course, teacher and current
+moderation reasons together. Ordering is original `createdAt DESC, id DESC`.
+
+The own-review DTO contains reviewId, course code/name, teacher name, academicTerm,
+rating, current text, status, submittedAt (immutable createdAt), moderatedAt and
+friendly moderation reasons. It excludes account identity, offering/source IDs,
+credentials and provider internals. The older status endpoint keeps its existing
+contract; only this authenticated own-history endpoint supplies text for every
+status. Reading history neither checks new submission eligibility nor moderates.
+
+- **PUBLISHED:** Edit Review opens an inline rating/text editor, preloaded from
+  the server. It reuses RatingInput and the existing 1–5 / nonblank / 2000-character
+  rules. Save Changes calls US28 `PUT /api/student/reviews/{reviewId}` on the same
+  row, then reloads history from the server. No local moderation result is guessed.
+  Cancel discards unsaved changes; controls are disabled while saving. Failed
+  saves retain the editor and previously loaded review. Refresh after an uncertain
+  network result (cancel editing first) because the write may already have committed.
+- **NEEDS_CORRECTION:** friendly reasons plus Fix Feedback link to the existing
+  owner-only status page and US27 text-only correction editor. My Reviews reloads
+  current content/status on return. Status wording is shared between both pages.
+- **SUBMITTED:** status and View Status only, without edit/correction controls.
+
+Loading, empty, safe-error and manual refresh states are included. A failed reload
+keeps previously loaded content with an out-of-date warning and disables editing.
+Account changes remount the page; requests are cancelled on unmount. History and
+unsaved edits do not use draft sessionStorage. New review drafts remain unchanged.
+
+No schema change, deletion/archive, revision history, aggregation or US30 feature
+was added. `uk_review_author_offering_term` and all US27/US28 backend update and
+moderation rules remain unchanged. Tests use isolated synthetic data/fake providers;
+the six existing local PostgreSQL reviews are not edited by this implementation.

@@ -2,6 +2,10 @@ package kz.sdu.feedback.review.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import kz.sdu.feedback.review.moderation.ModerationCategory;
+import kz.sdu.feedback.review.moderation.ModerationResult;
 import kz.sdu.feedback.user.entity.User;
 import kz.sdu.feedback.offering.entity.CourseOffering;
 
@@ -29,6 +33,14 @@ public class Review {
     @org.hibernate.annotations.ColumnDefault("'SUBMITTED'")
     private ReviewStatus status = ReviewStatus.SUBMITTED;
 
+    private Instant moderatedAt;
+    @ElementCollection
+    @CollectionTable(name = "review_moderation_categories", joinColumns = @JoinColumn(name = "review_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"review_id", "category"}))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 40)
+    private Set<ModerationCategory> moderationCategories = new HashSet<>();
+
     protected Review() { }
     public Review(User author, CourseOffering offering, String academicTerm, int rating, String text) {
         this.author = author;
@@ -46,4 +58,34 @@ public class Review {
     public String getText() { return text; }
     public Instant getCreatedAt() { return createdAt; }
     public ReviewStatus getStatus() { return status; }
+    public Instant getModeratedAt() { return moderatedAt; }
+    public Set<ModerationCategory> getModerationCategories() { return Set.copyOf(moderationCategories); }
+
+    public void submitCorrection(String correctedText) {
+        if (status != ReviewStatus.NEEDS_CORRECTION) throw new IllegalStateException("Review is not editable.");
+        text = correctedText;
+        resetModeration();
+    }
+
+    public void submitPublishedUpdate(int updatedRating, String updatedText) {
+        if (status != ReviewStatus.PUBLISHED) throw new IllegalStateException("Review is not published.");
+        rating = updatedRating;
+        text = updatedText;
+        resetModeration();
+    }
+
+    private void resetModeration() {
+        status = ReviewStatus.SUBMITTED;
+        moderationCategories.clear();
+        moderatedAt = null;
+    }
+
+    public void completeModeration(ModerationResult result) {
+        if (status != ReviewStatus.SUBMITTED) return;
+        moderationCategories.clear();
+        moderationCategories.addAll(result.categories());
+        status = result.decision() == ModerationResult.Decision.ACCEPT
+                ? ReviewStatus.PUBLISHED : ReviewStatus.NEEDS_CORRECTION;
+        moderatedAt = Instant.now();
+    }
 }

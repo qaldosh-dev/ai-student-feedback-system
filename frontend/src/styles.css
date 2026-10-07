@@ -147,3 +147,4 @@ h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .feedback-input textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 12px; border: 1px solid #cbd8e9; border-radius: 6px; font: inherit; color: #243d59; resize: vertical; }
 .feedback-input textarea:focus-visible { outline: 2px solid #225b99; outline-offset: 2px; }
 .review-draft-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.review-text { white-space: pre-wrap; }

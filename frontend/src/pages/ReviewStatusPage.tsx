@@ -4,6 +4,8 @@ import { AccountSessionExpired } from '../api/auth';
 import { getReviewStatus } from '../api/reviews';
 import type { ReviewStatusResponse } from '../api/reviews';
 import { useAuth } from '../auth/AuthContext';
+import ReviewCorrectionEditor from '../components/ReviewCorrectionEditor';
+import ReviewModerationStatus from '../components/ReviewModerationStatus';
 
 export default function ReviewStatusPage() {
   const { reviewId = '' } = useParams();
@@ -38,13 +40,15 @@ function ReviewStatus({ reviewId }: { reviewId: string }) {
 
   return <main id="main" className="container role-area">
     <Link to="/student">Back to Student Area</Link>
+    <p><Link to="/student/reviews">My Reviews</Link></p>
     <h1>Review Submission Status</h1>
-    <ReviewStatusContent data={data} loading={loading} error={error} onRetry={() => setAttempt(value => value + 1)} />
+    <ReviewStatusContent data={data} loading={loading} error={error} onSessionExpired={expireSession}
+      onRetry={() => { setLoading(true); setData(null); setAttempt(value => value + 1); }} />
   </main>;
 }
 
-export function ReviewStatusContent({ data, loading, error, onRetry }: {
-  data: ReviewStatusResponse | null; loading: boolean; error: string; onRetry: () => void;
+export function ReviewStatusContent({ data, loading, error, onRetry, onSessionExpired }: {
+  data: ReviewStatusResponse | null; loading: boolean; error: string; onRetry: () => void; onSessionExpired?: () => void;
 }) {
   if (loading) return <p role="status">Loading review status…</p>;
   if (error) return <div className="state-message error-message" role="alert">
@@ -58,6 +62,10 @@ export function ReviewStatusContent({ data, loading, error, onRetry }: {
     <p><strong>Academic Term:</strong> {data.academicTerm}</p>
     <p><strong>Rating:</strong> {data.rating} / 5</p>
     <p><strong>Submitted:</strong> {new Date(data.submittedAt).toLocaleString()}</p>
-    <p><strong>Submission Status:</strong> {data.status === 'SUBMITTED' ? 'Submitted' : 'Status unavailable'}</p>
+    <ReviewModerationStatus status={data.status} moderationReasons={data.moderationReasons} />
+    {data.status === 'NEEDS_CORRECTION' && <>
+      {typeof data.text === 'string' && <ReviewCorrectionEditor key={`${data.reviewId}:${data.moderatedAt}`}
+        reviewId={data.reviewId} initialText={data.text} onSaved={onRetry} onSessionExpired={onSessionExpired} />}
+    </>}
   </section>;
 }

@@ -40,6 +40,8 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @Transactional
 class ReviewSubmissionTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    kz.sdu.feedback.review.moderation.ModerationProvider moderationProvider;
     static final String EMAIL = "student@feedback.test", TERM = "2026-2027 1 term", API = "/api/student/reviews";
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;

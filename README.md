@@ -1502,3 +1502,59 @@ No schema change, deletion/archive, revision history, aggregation or US30 featur
 was added. `uk_review_author_offering_term` and all US27/US28 backend update and
 moderation rules remain unchanged. Tests use isolated synthetic data/fake providers;
 the six existing local PostgreSQL reviews are not edited by this implementation.
+
+## US30 — Teacher Course Feedback (Sprint 4)
+
+Teacher Area links to `/teacher/feedback` (**Course Feedback**), using the existing
+TEACHER route guard. `GET /api/teacher/feedback` is protected by the existing
+`/api/teacher/**` security rule. It resolves the current account through
+`AccountDetailsService.currentUser`, then uses only that account's linkedTeacher.
+All query parameters are rejected; clients cannot select a teacher. Missing
+linkedTeacher returns safe 403, with no name/email-based fallback. Anonymous
+requests receive 401; STUDENT/ADMIN without TEACHER receive 403.
+
+The repository filters by the linked Teacher's CourseOfferings and PUBLISHED
+status **in SQL**, selecting only safe fields. SUBMITTED/NEEDS_CORRECTION content
+and counts are never returned. No author, schedule or moderation-category data
+is selected by this feedback query. The response is a list of groups:
+
+- `courseOfferingId`, `courseCode`, `courseName`, `academicTerm`, `feedback`.
+- Each feedback item contains only `rating`, `text`, `publishedAt`.
+
+Offering ID is a technical group key, not displayed as normal UI text. Groups
+remain distinct by CourseOffering + academicTerm, including separate Moodle
+offerings for the same course. No groupSection, review/author ID, student identity
+or provider internals are returned. The endpoint uses a separate teacher-safe DTO,
+not the Student-own history DTO. Published free text is shown as text, not HTML.
+
+Group order is course code ascending, offering ID ascending, academic term
+descending (lexical). Inside each group, current publication time descending,
+then review ID descending. Publication time uses moderatedAt, falling back to
+createdAt for legacy published rows without a moderation timestamp. The fallback
+does not alter stored data. A Student update hides the review while SUBMITTED or
+NEEDS_CORRECTION; it becomes visible again only after PUBLISHED.
+
+The page shows course/term groups and individual rating, text and date. Direct
+navigation, reload, loading, retry and empty states use backend data. No published
+feedback (including no offerings or only private reviews) gives the same neutral
+empty state. Account/link changes remount the view; cancelled requests cannot
+replace current data. Refresh/error clears old feedback rather than showing
+potentially outdated published content.
+
+US30 is implemented and automatically tested. Manual browser smoke has not been
+performed: after starting the current backend/frontend, sign in as the Teacher
+linked to an existing published review's offering, open Teacher Area → Course
+Feedback, and refresh/directly open `/teacher/feedback`. Confirm the published
+review appears without author/group details. Existing flagged/submitted reviews
+must be absent. Do not modify real reviews or claims to manufacture this check;
+isolated synthetic tests cover these states and the same-course/two-teacher case.
+
+Read-only local check on 2026-10-09 found three PUBLISHED reviews, but none of
+their offerings' Teachers currently has a linked TEACHER-role account. Therefore
+the exact positive browser scenario is not available with current accounts.
+No claims/accounts/reviews were changed to make it possible; an existing linked
+Teacher account can still check the empty state and reload behavior.
+
+No schema changes, average/statistics/charts, filters, AI requests, Teacher review
+management or revision history were added. US28 UNIQUE and US24–US29 behavior
+remain unchanged. US31–US36 and Sprint 5 have not started.

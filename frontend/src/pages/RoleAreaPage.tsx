@@ -72,6 +72,7 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
         <ScheduleUploadForm key={`form-${currentUser?.id}`} onUploaded={() => setUploadsVersion(value => value + 1)} />
         <ScheduleUploadList key={`list-${currentUser?.id}`} refreshKey={uploadsVersion} />
       </>}
+      {role === 'TEACHER' && home && !loading && !error && <p><Link to="/teacher/feedback">Course Feedback</Link></p>}
     </main>
   );
 }

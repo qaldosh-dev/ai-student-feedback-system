@@ -19,6 +19,7 @@ public class AccountSetupService {
         this.teachers = teachers;
     }
 
+
     @Transactional
     public CurrentUser selectStudent(String email) {
         var user = verifiedUserForUpdate(email);

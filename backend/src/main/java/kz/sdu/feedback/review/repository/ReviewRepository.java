@@ -9,6 +9,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
+    // Select only teacher-safe fields; no author, schedule or moderation details are loaded.
+    @Query("select o.id as courseOfferingId, c.code as courseCode, c.name as courseName, "
+            + "r.academicTerm as academicTerm, r.rating as rating, r.text as text, "
+            + "coalesce(r.moderatedAt, r.createdAt) as publishedAt "
+            + "from Review r join r.courseOffering o join o.course c "
+            + "where o.teacher.id = :teacherId and r.status = kz.sdu.feedback.review.entity.ReviewStatus.PUBLISHED "
+            + "order by c.code asc, o.id asc, r.academicTerm desc, coalesce(r.moderatedAt, r.createdAt) desc, r.id desc")
+    java.util.List<PublishedFeedbackRow> findPublishedForTeacher(@Param("teacherId") Long teacherId);
+
+    interface PublishedFeedbackRow {
+        Long getCourseOfferingId();
+        String getCourseCode();
+        String getCourseName();
+        String getAcademicTerm();
+        int getRating();
+        String getText();
+        java.time.Instant getPublishedAt();
+    }
+
     @Query("select distinct r from Review r join fetch r.courseOffering o join fetch o.course join fetch o.teacher "
             + "left join fetch r.moderationCategories where r.author.email = :email order by r.createdAt desc, r.id desc")
     java.util.List<Review> findOwnHistory(@Param("email") String email);

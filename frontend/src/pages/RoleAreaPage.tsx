@@ -73,6 +73,13 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
         <ScheduleUploadList key={`list-${currentUser?.id}`} refreshKey={uploadsVersion} />
       </>}
       {role === 'TEACHER' && home && !loading && !error && <p><Link to="/teacher/feedback">Course Feedback</Link></p>}
+      {role === 'TEACHER' && home && !loading && !error && <MyProfileLink linkedTeacher={home.linkedTeacher} />}
+      {role === 'TEACHER' && home && !loading && !error && <p><Link to="/teacher/analytics">Teacher Analytics</Link></p>}
     </main>
   );
+}
+
+export function MyProfileLink({ linkedTeacher }: { linkedTeacher: CurrentUser['linkedTeacher'] }) {
+  // This value comes from authenticated /api/teacher/home, never a URL/query identity.
+  return linkedTeacher ? <p><Link to={`/teachers/${linkedTeacher.id}`}>My Profile</Link></p> : null;
 }

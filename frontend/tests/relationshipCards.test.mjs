@@ -69,7 +69,7 @@ test('same offering with different terms has distinct links; groups and repeated
   assert.equal(links.length,2); assert.notEqual(links[0],links[1]);
 });
 for(const roles of [[],['TEACHER'],['ADMIN']]) test(`both catalog sections hide review actions for ${roles.join() || 'logged out'}`,()=>{
-  for(const render of [teacherCards,courseCards]) assert.doesNotMatch(render(rows,roles),/Leave Review|leave-review-link/);
+  for(const render of [teacherCards,courseCards]) assert.doesNotMatch(render(rows,roles),/Leave Review|\/student\/reviews\/new/);
 });
 test('student plus teacher role retains shortcuts',()=>assert.equal(reviewLinks(courseCards(rows,['STUDENT','TEACHER'])).length,2));
 test('without server eligibility, pending/unchecked/unrelated catalog relationships have no action',()=>{
@@ -78,6 +78,7 @@ test('without server eligibility, pending/unchecked/unrelated catalog relationsh
 test('links are keyboard-native independent actions, with no nested interactive card or extra review form',()=>{
   const html=teacherCards(rows);
   assert.match(html,/class="catalog-card-main"/); assert.match(html,/<a class="leave-review-link"/);
-  assert.doesNotMatch(html,/<button[^>]*>[\s\S]*Leave Review|<a[^>]*>[\s\S]*<a|<form|textarea|\/teachers\/|\/courses\//);
+  assert.doesNotMatch(html,/<button[^>]*>[\s\S]*Leave Review|<a\b[^>]*>(?:(?!<\/a>)[\s\S])*<a\b|<form|textarea|\/courses\//);
+  assert.match(html,/href="\/teachers\/20"/);
 });
 

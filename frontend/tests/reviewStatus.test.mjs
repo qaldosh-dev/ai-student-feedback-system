@@ -13,13 +13,14 @@ const { ReviewStatusContent } = await server.ssrLoadModule('/src/pages/ReviewSta
 const { getReviewStatus } = await server.ssrLoadModule('/src/api/reviews.ts');
 const data = { reviewId: 7, status: 'SUBMITTED', submittedAt: '2026-09-28T07:00:00Z', courseOfferingId: 100,
   courseCode: 'ABC 100', courseName: 'Alpha Subject', teacherName: 'Alex Example', academicTerm: '2026-2027 1 term', rating: 4,
-  moderatedAt: null, moderationReasons: [], text: null };
+  moderatedAt: null, moderationReasons: [], text: null, retryModerationAvailable: true, retryAfterSeconds: 0 };
 const render = (props = {}) => renderToStaticMarkup(createElement(ReviewStatusContent, { data, loading: false, error: '', onRetry() {}, ...props }));
 
 test('Submitted remains awaiting moderation and never implies publication', () => {
   const html = render();
   for (const text of ['Your review was submitted successfully.', 'ABC 100', 'Alpha Subject', 'Alex Example', '2026-2027 1 term', '4 / 5', 'Submission Status:', 'Submitted']) assert.ok(html.includes(text));
-  assert.doesNotMatch(html, /Published|Approved|AI checked|Edit|Correct|My Reviews|history|<form|textarea|button/);
+  assert.doesNotMatch(html, /Published|Approved|AI checked|Edit|Correct|My Reviews|history|<form|textarea/);
+  assert.match(html, /Retry Moderation/);
   assert.match(html, /awaiting moderation/);
 });
 test('Published shows successful moderation without correction controls', () => {

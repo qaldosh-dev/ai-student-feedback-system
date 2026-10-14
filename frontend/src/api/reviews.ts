@@ -8,9 +8,34 @@ export interface ReviewStatusResponse {
   academicTerm: string; rating: number; moderatedAt: string | null;
   moderationReasons: { category: string; message: string }[];
   text: string | null; // Own flagged feedback only; never author identity.
+  retryModerationAvailable: boolean;
+  retryAfterSeconds: number;
 }
 
-export type OwnReview = Omit<ReviewStatusResponse, 'courseOfferingId' | 'text'> & { text: string };
+export type OwnReview = Omit<ReviewStatusResponse, 'courseOfferingId' | 'text' | 'retryModerationAvailable' | 'retryAfterSeconds'> & { text: string };
+
+export class ModerationRetryCooldown extends Error {
+  constructor(public retryAfterSeconds: number) { super('Moderation was recently attempted. Please try again later.'); }
+}
+
+export async function retryReviewModeration(reviewId: number): Promise<ReviewStatusResponse> {
+  const response = await fetch(`/api/student/reviews/${reviewId}/moderation/retry`, {
+    method: 'POST', credentials: 'same-origin', headers: await csrfHeaders(), signal: AbortSignal.timeout(15000),
+  });
+  if (response.status === 401) throw new AccountSessionExpired();
+  if (response.status === 429) {
+    const result = await response.json().catch(() => null);
+    const wait = result?.retryAfterSeconds;
+    if (Number.isSafeInteger(wait) && wait > 0) throw new ModerationRetryCooldown(wait);
+  }
+  if (response.status === 404) throw new Error('Review not found or unavailable. Refresh its status.');
+  if (response.status === 409) throw new Error('This review is no longer awaiting moderation. Refresh its status.');
+  if (!response.ok) throw new Error('Moderation retry could not be confirmed. Refresh the status before trying again.');
+  const result: ReviewStatusResponse = await response.json();
+  if (result.reviewId !== reviewId || !['SUBMITTED', 'PUBLISHED', 'NEEDS_CORRECTION'].includes(result.status))
+    throw new Error('Moderation retry could not be confirmed. Refresh the status before trying again.');
+  return result;
+}
 
 export async function getOwnReviews(signal: AbortSignal): Promise<OwnReview[]> {
   const response = await fetch('/api/student/reviews', {

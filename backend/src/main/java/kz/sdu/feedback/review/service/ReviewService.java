@@ -57,7 +57,7 @@ public class ReviewService {
             if (isDuplicateConstraint(failure)) throw duplicate();
             throw failure;
         }
-        events.publishEvent(new ReviewSubmitted(review.getId(), review.getText()));
+        beginModeration(review);
         // This receipt confirms initial SUBMITTED persistence. The status GET reads the moderation outcome.
         return ReviewSubmissionResponse.from(review);
     }
@@ -82,7 +82,7 @@ public class ReviewService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only feedback needing correction can be edited.");
         review.submitCorrection(validatedText(request.text()));
         reviews.saveAndFlush(review);
-        events.publishEvent(new ReviewSubmitted(review.getId(), review.getText()));
+        beginModeration(review);
         return ReviewSubmissionResponse.from(review);
     }
 
@@ -95,8 +95,26 @@ public class ReviewService {
         validateRating(request.rating());
         review.submitPublishedUpdate(request.rating(), validatedText(request.text()));
         reviews.saveAndFlush(review);
-        events.publishEvent(new ReviewSubmitted(review.getId(), review.getText()));
+        beginModeration(review);
         return ReviewSubmissionResponse.from(review);
+    }
+
+    @Transactional
+    public void retryModeration(String authenticatedEmail, Long reviewId) {
+        var review = reviews.findOwnedForUpdate(reviewId, authenticatedEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found."));
+        if (review.getStatus() != ReviewStatus.SUBMITTED)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only submitted reviews can retry moderation.");
+        long remaining = review.moderationRetryAfterSeconds(java.time.Instant.now());
+        if (remaining > 0) throw new ModerationCooldownException(remaining);
+        beginModeration(review);
+    }
+
+    private void beginModeration(Review review) {
+        var attemptAt = review.beginModerationAttempt();
+        reviews.saveAndFlush(review);
+        // The reservation commits before the synchronous US26 provider call starts.
+        events.publishEvent(new ReviewSubmitted(review.getId(), review.getText(), attemptAt));
     }
 
     private void validateRating(Integer rating) {

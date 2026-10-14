@@ -3,6 +3,7 @@ package kz.sdu.feedback.review.controller;
 import java.util.Map;
 import kz.sdu.feedback.review.dto.*;
 import kz.sdu.feedback.review.service.ReviewService;
+import kz.sdu.feedback.review.service.ModerationCooldownException;
 import tools.jackson.databind.JsonNode;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,20 @@ public class ReviewController {
     @PostMapping
     public ResponseEntity<ReviewSubmissionResponse> submit(@RequestBody JsonNode input, Authentication authentication) {
         return ResponseEntity.status(201).body(service.submit(authentication.getName(), SubmitReviewRequest.fromJson(input)));
+    }
+    @PostMapping("/{reviewId}/moderation/retry")
+    public ReviewStatusResponse retryModeration(@PathVariable Long reviewId, Authentication authentication,
+            @RequestParam Map<String, String> parameters, @RequestBody(required = false) byte[] body) {
+        if (!parameters.isEmpty() || body != null && body.length != 0)
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Retry does not accept request fields.");
+        service.retryModeration(authentication.getName(), reviewId);
+        // AFTER_COMMIT moderation has completed; read actual server state in a new transaction.
+        return service.status(authentication.getName(), reviewId);
+    }
+    @ExceptionHandler(ModerationCooldownException.class)
+    public ResponseEntity<Map<String, Object>> cooldown(ModerationCooldownException error) {
+        return ResponseEntity.status(429).header("Retry-After", Long.toString(error.retryAfterSeconds()))
+                .body(Map.of("message", error.getMessage(), "retryAfterSeconds", error.retryAfterSeconds()));
     }
     @PutMapping("/{reviewId}/correction")
     public ReviewSubmissionResponse correct(@PathVariable Long reviewId, @RequestBody JsonNode input, Authentication authentication) {

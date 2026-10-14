@@ -34,6 +34,8 @@ public class Review {
     private ReviewStatus status = ReviewStatus.SUBMITTED;
 
     private Instant moderatedAt;
+    @Column(name = "last_moderation_attempt_at")
+    private Instant lastModerationAttemptAt;
     @ElementCollection
     @CollectionTable(name = "review_moderation_categories", joinColumns = @JoinColumn(name = "review_id"),
             uniqueConstraints = @UniqueConstraint(columnNames = {"review_id", "category"}))
@@ -59,6 +61,19 @@ public class Review {
     public Instant getCreatedAt() { return createdAt; }
     public ReviewStatus getStatus() { return status; }
     public Instant getModeratedAt() { return moderatedAt; }
+    public Instant getLastModerationAttemptAt() { return lastModerationAttemptAt; }
+    public long moderationRetryAfterSeconds(Instant now) {
+        if (status != ReviewStatus.SUBMITTED || lastModerationAttemptAt == null) return 0;
+        var remaining = java.time.Duration.between(now, lastModerationAttemptAt.plusSeconds(60));
+        if (remaining.isNegative() || remaining.isZero()) return 0;
+        return remaining.getSeconds() + (remaining.getNano() > 0 ? 1 : 0);
+    }
+    public Instant beginModerationAttempt() {
+        if (status != ReviewStatus.SUBMITTED) throw new IllegalStateException("Review is not submitted.");
+        // PostgreSQL timestamps have microsecond precision; the event token must round-trip exactly.
+        lastModerationAttemptAt = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        return lastModerationAttemptAt;
+    }
     public Set<ModerationCategory> getModerationCategories() { return Set.copyOf(moderationCategories); }
 
     public void submitCorrection(String correctedText) {

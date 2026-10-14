@@ -12,6 +12,11 @@ import ReviewTargetPage from './pages/ReviewTargetPage';
 import ReviewStatusPage from './pages/ReviewStatusPage';
 import MyReviewsPage from './pages/MyReviewsPage';
 import TeacherFeedbackPage from './pages/TeacherFeedbackPage';
+import TeacherAnalyticsPage from './pages/TeacherAnalyticsPage';
+import TeacherProfilePage from './pages/TeacherProfilePage';
+import CourseDetailsPage from './pages/CourseDetailsPage';
+import PublicFeedbackPage from './pages/PublicFeedbackPage';
+import PreviousRatingsPage from './pages/PreviousRatingsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import SiteLayout from './components/SiteLayout';
 import { AuthProvider } from './auth/AuthContext';
@@ -24,6 +29,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route element={<SiteLayout />}>
             <Route path="/" element={<BrowsePage />} />
+            <Route path="/teachers/:teacherId" element={<TeacherProfilePage />} />
+            <Route path="/courses/:courseId" element={<CourseDetailsPage />} />
+            <Route path="/teachers/:teacherId/courses/:courseId/feedback" element={<PublicFeedbackPage />} />
+            <Route path="/teachers/:teacherId/courses/:courseId/ratings/history" element={<PreviousRatingsPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/account-setup" element={<ProtectedRoute><AccountSetupPage /></ProtectedRoute>} />
@@ -35,6 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/student/reviews/:reviewId/status" element={<ProtectedRoute requiredRole="STUDENT"><ReviewStatusPage /></ProtectedRoute>} />
             <Route path="/teacher" element={<ProtectedRoute requiredRole="TEACHER"><RoleAreaPage key="teacher" role="TEACHER" /></ProtectedRoute>} />
             <Route path="/teacher/feedback" element={<ProtectedRoute requiredRole="TEACHER"><TeacherFeedbackPage /></ProtectedRoute>} />
+            <Route path="/teacher/analytics" element={<ProtectedRoute requiredRole="TEACHER"><TeacherAnalyticsPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requiredRole="ADMIN"><RoleAreaPage key="admin" role="ADMIN" /></ProtectedRoute>} />
           </Route>
         </Routes>

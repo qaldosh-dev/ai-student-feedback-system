@@ -26,16 +26,22 @@ public class ReviewModerationService {
 
     @TransactionalEventListener // AFTER_COMMIT, synchronous; no queue or automatic retries.
     public void afterSubmission(ReviewSubmitted event) {
+        String stage = "PROVIDER_CALL";
         try {
-            var result = Objects.requireNonNull(provider.moderate(event.feedback()));
+            var result = provider.moderate(event.feedback());
+            stage = "PROVIDER_RESULT";
+            Objects.requireNonNull(result);
+            stage = "RESULT_PERSISTENCE";
             updateTransaction.executeWithoutResult(transaction -> {
-                var review = reviews.findById(event.reviewId()).orElseThrow();
+                var review = reviews.findForModerationUpdate(event.reviewId()).orElseThrow();
+                // A late provider response must never complete a newer retry/correction/update.
+                if (!Objects.equals(review.getLastModerationAttemptAt(), event.attemptAt())) return;
                 review.completeModeration(result);
                 reviews.saveAndFlush(review);
             });
         } catch (RuntimeException failure) {
             // Submission is already committed. Never log provider bodies, keys, feedback or identity.
-            log.warn("Review moderation incomplete; submitted review retained.");
+            log.warn("Review moderation incomplete; submitted review retained. stage={}; see provider diagnostic if available.", stage);
         }
     }
 }

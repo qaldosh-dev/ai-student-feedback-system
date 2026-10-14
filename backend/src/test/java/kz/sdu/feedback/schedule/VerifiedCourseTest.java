@@ -223,6 +223,11 @@ class VerifiedCourseTest {
     @Test void pendingReasonChangesInPlaceThenResolvesWhenCatalogBecomesComplete() {
         unknownRow(upload); service.list(EMAIL);
         var first = assertPending(Reason.COURSE_AND_TEACHER_NOT_FOUND);
+        // Model an older pending record: fast operations can share the same clock tick.
+        var earlier = java.time.Instant.parse("2020-01-01T00:00:00Z");
+        org.springframework.test.util.ReflectionTestUtils.setField(first, "createdAt", earlier);
+        org.springframework.test.util.ReflectionTestUtils.setField(first, "updatedAt", earlier);
+        pending.saveAndFlush(first);
         var newCourse = courses.saveAndFlush(new Course("XYZ 900", "Unknown Subject")); // Test-only catalog maintenance.
         service.list(EMAIL);
         var changed = assertPending(Reason.TEACHER_NOT_FOUND);

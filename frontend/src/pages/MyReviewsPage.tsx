@@ -65,7 +65,9 @@ export function MyReviewsContent({ reviews, loading, error, editing, onEdit, onC
               onSaved={onRefresh} onCancel={onCancel} onSessionExpired={onSessionExpired} />
           : <button type="button" className="account-button" disabled={editing !== null} onClick={() => onEdit(review.reviewId)}>Edit Review</button>)}
         {!loading && !error && review.status === 'NEEDS_CORRECTION' && <Link to={`/student/reviews/${review.reviewId}/status`}>Fix Feedback</Link>}
-        {review.status !== 'NEEDS_CORRECTION' && <Link to={`/student/reviews/${review.reviewId}/status`}>View Status</Link>}
+        {review.status !== 'NEEDS_CORRECTION' && <Link to={`/student/reviews/${review.reviewId}/status`}>
+          {review.status === 'SUBMITTED' ? 'Retry Moderation / View Status' : 'View Status'}
+        </Link>}
       </li>)}
     </ul>
   </>;

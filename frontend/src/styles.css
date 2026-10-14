@@ -68,7 +68,7 @@ h2 { font-size: 24px; font-weight: 650; letter-spacing: -0.5px; }
 .section-heading p { color: #68778b; font-size: 14px; margin-top: 4px; }
 .section-search { margin-bottom: 20px; max-width: 480px; }
 .section-search label { display: block; margin-bottom: 8px; color: #536782; font-size: 13px; font-weight: 600; }
-.section-search input { display: block; width: 100%; padding: 11px 14px; border: 1px solid #cad7e9; border-radius: 8px; color: #172a49; background: #fcfdff; font-size: 14px; }
+.section-search input, .section-search select { display: block; width: 100%; padding: 11px 14px; border: 1px solid #cad7e9; border-radius: 8px; color: #172a49; background: #fcfdff; font-size: 14px; }
 .section-search input::placeholder { color: #68778b; }
 .count { color: #5b6e89; font-size: 12px; padding: 5px 10px; border: 1px solid #e3eaf3; border-radius: 6px; white-space: nowrap; }
 .card-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

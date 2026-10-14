@@ -1,6 +1,7 @@
 import type { Course } from '../api/catalog';
 import type { RelationshipContext } from '../pages/relationshipHighlights';
 import VerifiedRelationships from './VerifiedRelationships';
+import { Link } from 'react-router';
 
 interface CoursesSectionProps {
   courses: Course[];
@@ -53,6 +54,7 @@ export default function CoursesSection({ courses, relationships, loading, error,
               <div className="catalog-card-main">
                 <span className="course-code">{course.code}</span>
                 <h3>{course.name}</h3>
+                <Link to={`/courses/${course.id}`} className="leave-review-link">View Course</Link>
               </div>
               <VerifiedRelationships relationships={relationships?.get(course.id)} />
             </li>

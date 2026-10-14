@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getCourses, getTeachers } from '../api/catalog';
-import type { Course, Teacher } from '../api/catalog';
+import type { Course, Teacher, TeacherSort } from '../api/catalog';
 import CoursesSection from '../components/CoursesSection';
 import TeachersSection from '../components/TeachersSection';
 import { useAuth } from '../auth/AuthContext';
@@ -39,6 +39,7 @@ export default function BrowsePage() {
   const [coursesError, setCoursesError] = useState(false);
   const [teacherQuery, setTeacherQuery] = useState('');
   const [courseQuery, setCourseQuery] = useState('');
+  const [teacherSort, setTeacherSort] = useState<TeacherSort>('NAME_ASC');
   const [teacherAttempt, setTeacherAttempt] = useState(0);
   const [courseAttempt, setCourseAttempt] = useState(0);
 
@@ -48,7 +49,7 @@ export default function BrowsePage() {
     setTeachersError(false);
 
     // Ignore cancelled results so an older search cannot replace the current one.
-    getTeachers(controller.signal, teacherQuery, courseQuery)
+    getTeachers(controller.signal, teacherQuery, courseQuery, teacherSort)
       .then((data) => {
         if (!controller.signal.aborted) setTeachers(data);
       })
@@ -60,7 +61,7 @@ export default function BrowsePage() {
       });
 
     return () => controller.abort();
-  }, [teacherQuery, courseQuery, teacherAttempt]);
+  }, [teacherQuery, courseQuery, teacherSort, teacherAttempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,6 +101,8 @@ export default function BrowsePage() {
           loading={teachersLoading}
           error={teachersError}
           query={teacherQuery}
+          sort={teacherSort}
+          onSortChange={setTeacherSort}
           hasActiveSearch={Boolean(teacherQuery.trim() || courseQuery.trim())}
           onQueryChange={setTeacherQuery}
           onRetry={() => setTeacherAttempt((previous) => previous + 1)}

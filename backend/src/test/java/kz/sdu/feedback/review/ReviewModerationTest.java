@@ -127,9 +127,9 @@ class ReviewModerationTest {
         when(provider.moderate(anyString())).thenAnswer(call -> {
             // A separate physical connection cannot see an uncommitted insert.
             try (var connection = dataSource.getConnection(); var statement = connection.createStatement();
-                 var result = statement.executeQuery("select status, moderated_at from reviews")) {
+                 var result = statement.executeQuery("select status, moderated_at, last_moderation_attempt_at from reviews")) {
                 assertTrue(result.next()); assertEquals("SUBMITTED", result.getString(1));
-                assertNull(result.getObject(2)); assertFalse(result.next());
+                assertNull(result.getObject(2)); assertNotNull(result.getObject(3)); assertFalse(result.next());
             }
             return accept();
         });
@@ -141,6 +141,8 @@ class ReviewModerationTest {
         var id = submit("Useful feedback", 4);
         var status = service.status(EMAIL, id);
         assertEquals(ReviewStatus.SUBMITTED, status.status()); assertNull(status.moderatedAt());
+        assertNotNull(reviews.findById(id).orElseThrow().getLastModerationAttemptAt());
+        assertTrue(status.retryAfterSeconds() > 0); assertFalse(status.retryModerationAvailable());
         assertTrue(status.moderationReasons().isEmpty()); assertEquals(1, reviews.count());
         verify(provider, times(1)).moderate("Useful feedback");
     }

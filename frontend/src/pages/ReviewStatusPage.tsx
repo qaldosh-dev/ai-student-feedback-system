@@ -6,6 +6,7 @@ import type { ReviewStatusResponse } from '../api/reviews';
 import { useAuth } from '../auth/AuthContext';
 import ReviewCorrectionEditor from '../components/ReviewCorrectionEditor';
 import ReviewModerationStatus from '../components/ReviewModerationStatus';
+import ReviewModerationRetry from '../components/ReviewModerationRetry';
 
 export default function ReviewStatusPage() {
   const { reviewId = '' } = useParams();
@@ -43,12 +44,14 @@ function ReviewStatus({ reviewId }: { reviewId: string }) {
     <p><Link to="/student/reviews">My Reviews</Link></p>
     <h1>Review Submission Status</h1>
     <ReviewStatusContent data={data} loading={loading} error={error} onSessionExpired={expireSession}
+      onUpdated={setData}
       onRetry={() => { setLoading(true); setData(null); setAttempt(value => value + 1); }} />
   </main>;
 }
 
-export function ReviewStatusContent({ data, loading, error, onRetry, onSessionExpired }: {
+export function ReviewStatusContent({ data, loading, error, onRetry, onSessionExpired, onUpdated }: {
   data: ReviewStatusResponse | null; loading: boolean; error: string; onRetry: () => void; onSessionExpired?: () => void;
+  onUpdated?: (result: ReviewStatusResponse) => void;
 }) {
   if (loading) return <p role="status">Loading review status…</p>;
   if (error) return <div className="state-message error-message" role="alert">
@@ -63,6 +66,9 @@ export function ReviewStatusContent({ data, loading, error, onRetry, onSessionEx
     <p><strong>Rating:</strong> {data.rating} / 5</p>
     <p><strong>Submitted:</strong> {new Date(data.submittedAt).toLocaleString()}</p>
     <ReviewModerationStatus status={data.status} moderationReasons={data.moderationReasons} />
+    {data.status === 'SUBMITTED' && <ReviewModerationRetry
+      key={`${data.reviewId}:${data.retryAfterSeconds}:${data.retryModerationAvailable}`}
+      review={data} onUpdated={onUpdated ?? onRetry} onRefresh={onRetry} onSessionExpired={onSessionExpired} />}
     {data.status === 'NEEDS_CORRECTION' && <>
       {typeof data.text === 'string' && <ReviewCorrectionEditor key={`${data.reviewId}:${data.moderatedAt}`}
         reviewId={data.reviewId} initialText={data.text} onSaved={onRetry} onSessionExpired={onSessionExpired} />}

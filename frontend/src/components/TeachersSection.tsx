@@ -1,6 +1,7 @@
-import type { Teacher } from '../api/catalog';
+import type { Teacher, TeacherSort } from '../api/catalog';
 import type { RelationshipContext } from '../pages/relationshipHighlights';
 import VerifiedRelationships from './VerifiedRelationships';
+import { Link } from 'react-router';
 
 interface TeachersSectionProps {
   teachers: Teacher[];
@@ -8,12 +9,14 @@ interface TeachersSectionProps {
   loading: boolean;
   error: boolean;
   query: string;
+  sort: TeacherSort;
+  onSortChange: (sort: TeacherSort) => void;
   hasActiveSearch: boolean;
   onQueryChange: (query: string) => void;
   onRetry: () => void;
 }
 
-export default function TeachersSection({ teachers, relationships, loading, error, query, hasActiveSearch, onQueryChange, onRetry }: TeachersSectionProps) {
+export default function TeachersSection({ teachers, relationships, loading, error, query, sort, onSortChange, hasActiveSearch, onQueryChange, onRetry }: TeachersSectionProps) {
   return (
     <section id="teachers" className="catalog-section" aria-labelledby="teachers-title">
       <div className="section-heading">
@@ -33,6 +36,18 @@ export default function TeachersSection({ teachers, relationships, loading, erro
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
         />
+      </div>
+
+      <div className="section-search">
+        <label htmlFor="teacher-sort">Sort by</label>
+        <select id="teacher-sort" value={sort} onChange={(event) => onSortChange(event.target.value as TeacherSort)}>
+          <option value="NAME_ASC">Name A–Z</option>
+          <option value="NAME_DESC">Name Z–A</option>
+          <option value="RATING_DESC">Highest rated</option>
+          <option value="RATING_ASC">Lowest rated</option>
+          <option value="REVIEW_COUNT_DESC">Most reviewed</option>
+          <option value="HAS_FEEDBACK_FIRST">Has published feedback first</option>
+        </select>
       </div>
 
       {loading ? (
@@ -57,6 +72,7 @@ export default function TeachersSection({ teachers, relationships, loading, erro
                 <div className="catalog-card-main">
                   <h3>{teacher.name}</h3>
                   <p>{teacher.department}</p>
+                  <Link to={`/teachers/${teacher.id}`} className="leave-review-link">View Profile</Link>
                 </div>
                 <VerifiedRelationships relationships={relationships?.get(teacher.id)} />
               </div>

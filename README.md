@@ -1558,3 +1558,642 @@ Teacher account can still check the empty state and reload behavior.
 No schema changes, average/statistics/charts, filters, AI requests, Teacher review
 management or revision history were added. US28 UNIQUE and US24–US29 behavior
 remain unchanged. US31–US36 and Sprint 5 have not started.
+
+## Sprint 5 — US8: Teacher Profile
+
+Public `GET /api/teachers/{teacherId}` returns only `id`, `name` and
+`courseOfferings` containing `courseId`, `courseCode`, `courseName`, `academicTerm`.
+Course information comes from existing CourseOffering relationships. The term
+is the catalog's stored `semester` (for example `Fall 2026`), without guessing
+a schedule/review term conversion. Missing or invalid IDs return a safe 404.
+
+Public `/teachers/:teacherId` shows the name and courses/terms, with loading,
+retry, not-found and empty states. Browse teacher cards have **View Profile**.
+Teacher Area has **My Profile** alongside the existing **Course Feedback** link.
+My Profile uses `linkedTeacher` from authenticated `/api/teacher/home`; no link
+is offered when that relationship is absent. Both paths open the same public page.
+
+A read-only catalog check found 16 repeated teacher/course/semester groups.
+The profile query therefore selects distinct course/term display rows for the
+selected teacher. Different terms remain separate. No source offering, section,
+Moodle identifier, schema or stored record is merged or changed.
+
+US8 adds no reviews, ratings, analytics, owner editing or Course Details.
+Later Sprint 5 stories, including US32, are documented below.
+Manual browser smoke remains: start the current application, open Browse →
+View Profile, refresh/directly open `/teachers/7`, check a nonexistent ID, and
+open Teacher Area → My Profile with an existing linked Teacher account.
+Course Feedback should remain available separately.
+
+## Sprint 5 — US9: Course Details
+
+Public `GET /api/courses/{courseId}` returns `courseId`, `courseCode`,
+`courseName` and `teacherOfferings` with `teacherId`, `teacherName`,
+`academicTerm`. Teachers come exclusively from CourseOffering relationships.
+The stored `semester` is preserved as `academicTerm` without interpreting groups
+or inventing a different term format. The response contains no account,
+schedule, review, rating or moderation data.
+
+As with US8, repeated source offerings are deduplicated for display only:
+one Teacher ID + term row for this Course. Distinct teachers (even with the same
+name) and distinct terms remain separate. Ordering is teacher name, teacher ID,
+then term descending as stored text, not inferred chronological order.
+Missing/invalid Course IDs return safe 404; a Course without offerings returns
+its details and an empty teacher list.
+
+Public `/courses/:courseId` supports direct navigation/reload, loading, retry,
+not-found and empty states. Navigation is Browse Courses → View Course,
+Teacher Profile → View Course, and Course Details → View Teacher Profile.
+Existing Teacher Area → Course Feedback remains separate and unchanged.
+
+No database/schema changes, new filters, sorting controls, reviews, ratings,
+analytics or AI calls were added in US9. Later stories are documented below.
+Manual browser smoke remains: start the current application, follow both
+navigation paths, refresh Course Details, and try a nonexistent Course ID.
+US8 and US9 are implemented; Sprint 5 is not complete.
+
+## Sprint 5 — US10: Public feedback by course/term
+
+Public `GET /api/teachers/{teacherId}/courses/{courseId}/feedback` provides the
+catalog relationship and available feedback targets. Query parameters:
+`academicTerm` (exact stored text) and `courseOfferingId` (concrete source
+offering). The offering must belong to BOTH path identities. When the term
+uniquely identifies an offering it can be resolved without the optional ID;
+ambiguous terms return selection choices and no feedback until an offering is
+chosen. No first-offering guess or cross-offering aggregation is performed.
+
+Example: `/api/teachers/7/courses/10/feedback?academicTerm=2026-2027%201%20term&courseOfferingId=100`
+(IDs are illustrative; use existing catalog relationships).
+
+The response contains `teacherId`, `teacherName`, `courseId`, `courseCode`,
+`courseName`, selected `courseOfferingId`/`academicTerm`, `availableTargets`
+(`courseOfferingId`, `academicTerm`) and `feedback` (`rating`, `text`,
+`publishedAt`). Unselected offering/term values may be null. Only concrete
+offering + exact review term + PUBLISHED reviews are selected in the database.
+Order is publication date descending (`moderatedAt`, or `createdAt` for legacy
+rows), then Review ID descending; Review IDs are not returned.
+
+Catalog semesters and review terms are different source fields: real catalog
+data uses `Fall 2026`, while published reviews also use `2026-2027 1 term` and
+`2025-2026 1 term`. Options combine existing catalog offering/semester pairs
+with terms of PUBLISHED reviews only, preserving exact text. No conversion is
+inferred, and private-only review terms are never advertised. With duplicate
+source offerings for one term, the small selection list includes the offering
+ID to distinguish them without exposing sections or inventing language labels.
+
+Both Teacher Profile and Course Details link to the same public page:
+`/teachers/:teacherId/courses/:courseId/feedback?term=...&offering=...`.
+Term links trigger fresh backend selection. Direct navigation/refresh,
+cancellation, loading, retry and not-found states are supported. An existing
+selected target without published feedback displays a neutral empty message.
+Missing/unconnected identities, wrong offering, unknown term (including a
+private-only term), and incomplete explicit offering selection return safe 404.
+
+No authors, emails, accounts, groups, schedules, moderation/provider details,
+private statuses or private counts are returned. US30 retains its existing
+separate authenticated Teacher Area endpoint/page. No new schema, review
+actions, averages, history comparisons, charts, filters beyond this selection,
+or AI calls were added in US10. US11, US12 and US32 are documented below.
+
+Manual browser smoke remains: start the current application; open a Teacher
+Profile or Course Details → View Feedback; choose a published review's exact
+term (which may differ from the catalog semester); refresh/directly reopen the
+URL; switch term and, where listed separately, offering. Check a neutral empty
+catalog-term selection and an invalid selection. No real reviews need changing.
+Read-only inspection found published targets 1293 (INF 345, `2026-2027 1 term`),
+1479 (MDE 154, `2025-2026 1 term`) and 1482 (MDE 153, `2025-2026 1 term`).
+
+## Sprint 5 — US11: Previous Ratings
+
+Public `GET /api/teachers/{teacherId}/courses/{courseId}/ratings/history`
+returns `teacherId`, `teacherName`, `courseId`, `courseCode`, `courseName`, and
+`ratings`: `courseOfferingId`, `academicTerm`, `averageRating`,
+`publishedReviewCount`. It accepts no query filters. Nonexistent or unconnected
+Teacher/Course identities return safe 404. All data is read-only.
+
+The existing catalog contains separate Moodle/source offerings for some equal
+Teacher + Course + term combinations. Their equivalence is unproven, and US28
+allows a student one review per offering/term. Combining them could count the
+same student's separate source reviews together. US11 therefore preserves the
+US10 source boundary: SQL AVG/COUNT groups by **CourseOffering + exact review
+academicTerm**, restricted to the exact Teacher and Course and PUBLISHED status.
+All relevant offerings appear, but different offerings are never silently merged.
+This is the offering-aware fallback permitted by US11, not one blended average
+across ambiguous offerings. No group/section interpretation is used.
+
+AVG is the arithmetic mean of current PUBLISHED ratings; COUNT includes exactly
+those reviews. SUBMITTED and NEEDS_CORRECTION affect neither mean nor count.
+Backend returns the numeric mean without permanent rounding; frontend displays
+one decimal (`5, 4, 4` → `4.3 / 5`). No stats are stored or cached in PostgreSQL.
+Terms with no published ratings are omitted; a valid empty relationship returns
+`ratings: []`, never a fabricated `0.0 / 5`. Editing a published review removes
+its contribution until it is published again; this is not revision history.
+
+Ordering is exact academicTerm text descending, then offering ID ascending.
+There is no inferred chronology or normalization between `Fall 2026` and
+`2026-2027 1 term`. This limitation is explained in the UI. If several offerings
+have published ratings, each row identifies its course offering separately.
+
+US10 Public Feedback → **Previous Ratings** opens
+`/teachers/:teacherId/courses/:courseId/ratings/history`. This separate public
+page supports direct navigation, refresh, request cancellation, loading, retry,
+safe not-found and `No published ratings yet.` states. It links back to US10,
+the Teacher Profile and Course Details without duplicating review-text cards.
+
+Only catalog identity and term averages/counts are returned. No review text,
+Review IDs, authors, groups, schedule data or moderation/provider information
+is returned. No overall/all-time rating, distributions, charts, trend arrows,
+AI or new filtering system was added in US11. US32 is documented below.
+AccountSetupService, review writes, schema and US28 UNIQUE remain
+unchanged.
+
+Manual browser smoke remains: start the current application; open Teacher
+Profile or Course Details → View Feedback → Previous Ratings; confirm the
+correct Teacher/Course, term labels, averages/counts; refresh/directly reopen
+the history URL. A relationship without published reviews should show the
+neutral empty state; an unconnected pair should show not-found. Return to
+View Feedback to check that US10 still displays individual published reviews.
+
+## Sprint 5 — US12: Sort Teacher Results
+
+Public `GET /api/teachers?q=...&courseQ=...&sort=RATING_DESC` keeps the existing
+Teacher response (`id`, `name`, `department`). `sort` is optional; the default
+is `NAME_ASC`. An unsupported explicit value, including an empty value, returns
+400 with `Unsupported teacher sort.`
+
+| Sort | Order |
+| --- | --- |
+| `NAME_ASC` | Name A–Z, then ID ascending (existing default) |
+| `NAME_DESC` | Name Z–A, then ID ascending |
+| `RATING_DESC` | Rated first, published average descending, then name/ID ascending |
+| `RATING_ASC` | Rated first, published average ascending, then name/ID ascending |
+| `REVIEW_COUNT_DESC` | Published review count descending, then name/ID ascending |
+| `HAS_FEEDBACK_FIRST` | At least one published review first, then name/ID ascending |
+
+US12's refined teacher-level sort uses **all PUBLISHED reviews across that
+teacher's offerings and review terms**. It weights each review equally, not
+each offering equally. SUBMITTED and NEEDS_CORRECTION never contribute.
+Unrated teachers are not zero-rated and follow all rated teachers in both
+rating directions. Feedback-first retains teachers without published reviews.
+This internal teacher-level sort does not change US11's offering/term history.
+
+Search and course filters keep their existing partial, case-insensitive semantics.
+They limit which teachers appear, not which reviews contribute to their rating.
+The aggregate repository query groups reviews once by teacher and uses EXISTS
+for course filtering, avoiding multiplied counts and per-teacher queries. Name
+sorts retain the existing repository queries and database collation. Sorting
+values are enum-controlled; no user-supplied SQL fragments are used.
+
+Browse Teachers has one **Sort by** select with all six options. Changing it
+preserves both search fields, request cancellation, loading/error/empty states,
+retry, and View Profile links. The browser receives no new rating/count fields,
+review text, identities or moderation details. US32 displays stats separately
+on Teacher Profile, not Browse cards. No schema, catalog, review-writing,
+US28 uniqueness, or AccountSetupService changes are required.
+
+Manual browser smoke: start the current backend/frontend yourself; open Browse,
+try each sort with and without teacher/course search, clear the fields, and
+open View Profile. Check unrated teachers remain after rated teachers in both
+rating directions and search values survive sort changes. Automated API and
+rendering checks cover these contracts; no live browser smoke was performed.
+
+## Sprint 5 — US32: Overall Rating Stats
+
+Public `GET /api/teachers/{teacherId}/ratings/overall` returns only:
+`teacherId`, `teacherName`, nullable `averageRating`, `publishedReviewCount`,
+and `ratingDistribution` (keys `5`, `4`, `3`, `2`, `1`, including zero counts).
+Nonexistent/invalid Teacher IDs return safe 404. Like US11, this endpoint rejects
+query parameters with 400; overall statistics have no course, term or user filters.
+
+SQL AVG, COUNT and conditional counts include **only PUBLISHED reviews**, each
+once, across all of that teacher's courses, source offerings and review terms.
+This is the same teacher-wide scope used by US12 sorting; it is not an average
+of per-offering averages. US11's separate offering/term history stays unchanged.
+SUBMITTED and NEEDS_CORRECTION affect none of the fields. No published reviews
+means `averageRating: null`, count zero and all five buckets zero.
+
+The repository follows US11's aggregate-projection pattern. A teacher lookup
+and one aggregate query provide the result, without loading review entities,
+authors or one query per offering. The small single-teacher query does not
+couple Browse to this API or replace US12's existing bulk sorting query.
+No stats are stored/cached, no schema migration is needed, and US28 UNIQUE is
+unchanged. The endpoint returns no review text/IDs, student identities, groups,
+term details, offering IDs, schedule or moderation/provider data.
+
+Teacher Profile displays **Overall Rating** above Courses taught: average to
+one decimal, published review count, and simple 5-to-1 star count rows. Empty
+state says **No ratings yet / 0 published reviews**, never a false `0.0 / 5`.
+Statistics load independently with cancellation and a safe retry state; a stats
+failure does not hide courses. Direct navigation and refresh fetch current stats.
+Browse cards remain unchanged. No charts, trends, AI, comparisons or analytics
+filters were introduced. AccountSetupService was not changed.
+
+US8–US12 and US32 make Sprint 5 implementation-complete. Automated verification
+is separate from the remaining manual browser smoke check: start the current
+application, open a Teacher Profile with published reviews, check one-decimal
+mean/count/five buckets, refresh, then check a teacher without ratings. Verify
+View Course/View Feedback links and Browse sorting still work. No real review
+data needs creating or modifying. Sprint 6 begins with US31 below.
+
+US32 automated verification: 124 focused backend tests passed; final
+`mvn.cmd package` passed all 628 backend tests in one full run. Frontend:
+78 affected regression tests passed plus 12 US32 tests (after correcting the
+new test's expected existing feedback URL); production build passed. Read-only
+PostgreSQL snapshots remained identical: 506 Teachers, 903 Courses,
+1741 CourseOfferings, 6 Reviews, with the US28 UNIQUE constraint unchanged.
+
+## Sprint 6 — US31: Filter Teacher Analytics
+
+Teacher Area now links to `/teacher/analytics`. The existing TEACHER route guard
+and backend `/api/teacher/**` security apply. The page provides Course and Academic
+Term selectors only, with query state retained across refresh/back/forward.
+My Profile and Course Feedback remain separate and unchanged.
+
+`GET /api/teacher/analytics/scope?courseId=123&term=2026-2027%201%20term`
+returns exactly:
+
+- `courses`: `{courseId, courseCode, courseName, academicTerms: string[]}` options
+- `selectedCourseId` and `selectedAcademicTerm` (null when no courses exist)
+- `hasPublishedFeedback`: boolean
+
+Ownership comes exclusively from the authenticated account's `linkedTeacher`.
+Only that teacher's CourseOffering courses appear. Missing login returns 401,
+wrong role or missing linkedTeacher returns 403. Foreign/nonexistent/invalid
+course or term selections return safe 404. Unknown or duplicate parameters
+(including `teacherId`) return 400. No additional filters are supported.
+
+Terms are the exact union of owned offering semesters and PUBLISHED review
+academicTerms for the same teacher/course, following US10's distinction between
+catalog semesters and review terms. Different formats and whitespace stay distinct;
+there is no inferred equivalence or chronology. SUBMITTED/NEEDS_CORRECTION never
+add options or affect availability. Courses use code-ascending order (ID tie-breaker);
+terms use reverse lexical order. Without a selection, the first options are used
+deterministically, not as an inferred current semester. Changing course clears the
+previous term; the server selects a valid term for the new course. Term without a
+course is rejected. Invalid selections can be reset; loading/errors hide stale scope.
+
+Read-only inspection found 16 teacher/course/semester groups with repeated source
+offerings. US31's scope is the owned **teacher + course + exact review term**:
+availability means at least one PUBLISHED review in that set. Source offering IDs
+remain distinct; this boolean does not merge their records or statistics. US11
+continues to show separate offering/term history; US12/US32 keep their existing
+teacher-level aggregate scope. Group/section does not participate in US31 filters.
+
+Two projection queries retrieve catalog options and published term availability,
+in addition to existing current-account loading. No Review entities, per-offering
+queries or AI calls are needed. The response excludes student identity, review IDs
+and text, groupSection, schedule/verification data, ratings, counts and moderation
+details. Empty states say "No courses available for analytics." or "No published
+feedback available for this selection." No analytics tables or schema changes.
+
+Manual browser smoke (no new reviews needed): after starting the current app,
+sign in as a linked Teacher, open Teacher Analytics, change course and term, refresh
+and use Back. Confirm only own courses appear. Try an invalid course/term and reset;
+check a valid scope without published feedback. Existing My Profile/Course Feedback
+links should still work. Automated tests cover ownership, status privacy, exact terms,
+multiple offerings, URL/filter callbacks, empty/error states and bounded SQL queries.
+US33–US36, AI analysis and charts are not implemented; Sprint 6 is not complete.
+
+US31 verification: 23 focused analytics backend cases passed, alongside 139 affected
+backend regression cases. The initial query-budget assertion was corrected to count
+the three existing current-account queries plus two analytics projections; adding
+ten offerings still uses five queries. Frontend: 110 focused/affected tests passed,
+and production build passed. Final `mvn.cmd package` ran the full backend suite
+once: 664 passed, no failures/errors/skips. PostgreSQL before/after row checksums
+and counts match: 506 Teachers, 903 Courses, 1741 CourseOfferings, 9 Reviews;
+`uk_review_author_offering_term` is unchanged. Real browser smoke remains manual;
+the user's running application was not restarted. Gemini diagnostics and
+AccountSetupService were left untouched.
+
+## Sprint 6 — US33: AI Sentiment
+
+Teacher Analytics now adds aggregate Sentiment Analysis below the existing US31
+course/term filters. `GET /api/teacher/analytics/sentiment?courseId=...&term=...`
+requires both parameters and TEACHER access. It reuses US31 parameter, linkedTeacher,
+owned-course and exact-term validation, including safe 401/403/404/400 responses.
+Changing a filter remounts the section, cancels the old request and hides its result.
+Refresh reloads the URL scope; Retry requests a fresh result. No result is cached.
+
+The database selects only PUBLISHED review **text**, once per review, across the
+selected course's offerings owned by the authenticated teacher and the exact review
+academicTerm. Catalog semester labels are not equated with differently formatted
+review terms. SUBMITTED and NEEDS_CORRECTION are excluded before provider access.
+The read-only database step completes before the network call.
+
+`SentimentAnalysisService -> SentimentProvider -> GeminiSentimentProvider` is separate
+from moderation. It reuses existing GEMINI_API_KEY / GEMINI_MODEL configuration and
+the existing 8000 ms request timeout (3 second connection timeout), with no automatic
+retries. No moderation code/configuration is changed. A large/slow analysis may be
+unavailable rather than producing partial or invented results.
+
+The Gemini user payload is a JSON array containing only anonymous published feedback
+texts. No ratings, identity fields, teacher/course/offerings IDs, groupSection, schedule
+data or moderation history are added. The fixed policy treats texts as untrusted data,
+allows negative criticism, and asks only for sentiment, never moderation, topics or
+summary. The JSON schema requires `{"sentiments":["POSITIVE","NEUTRAL","NEGATIVE"]}`
+with one label per input in the same order. See the official
+[Gemini structured output documentation](https://ai.google.dev/gemini-api/docs/generate-content/structured-output?hl=en).
+Backend validation rejects wrong length, unknown labels, extra/duplicate JSON fields,
+invalid JSON, blocked/truncated output and unexpected envelopes.
+
+Backend counts classifications and derives MOSTLY_POSITIVE / MOSTLY_NEUTRAL /
+MOSTLY_NEGATIVE only when one category has a strictly higher count than both others;
+any tie for highest is MIXED. Integer percentages use floor plus largest remainder
+allocation, with equal remainders resolved POSITIVE, NEUTRAL, NEGATIVE. They total
+100 (for example 1/1/1 becomes 34/33/33). Ratings never determine sentiment.
+
+The safe response contains courseId, courseCode, courseName, academicTerm, status,
+analysisAvailable, analyzedReviewCount, overallSentiment, the three category counts
+and percentages. AVAILABLE includes aggregates only, never individual labels/texts
+or student/group/moderation/provider fields. EMPTY means zero published reviews:
+no AI call, analyzedReviewCount=0, null counts/percentages/overall. UNAVAILABLE means
+provider failure: analysisAvailable=false and all result/count fields null. Both
+are HTTP 200 domain states. The UI shows clear empty/unavailable messages; unavailable
+offers Retry. No fake neutral result, rating-based fallback or stale success.
+
+Safe provider warnings include model, key presence boolean, failure category, HTTP
+status, an allowlisted reason and item count. No exception stack/message, feedback,
+raw response, key or authorization header is logged. Missing config, invalid model,
+quota, HTTP errors, timeout/network errors and response parsing are distinguished.
+
+US33 adds no tables, migrations, stored sentiment or minimum sample threshold.
+Existing US28 uniqueness, US26 moderation and diagnostic changes remain intact.
+US34 topics, US35 summaries and US36 privacy enhancements are not implemented.
+Manual browser smoke: run the current app, sign in as a linked Teacher, select an
+owned course/term, check aggregate/empty/unavailable states, change filters, refresh
+and Retry if needed. No real Student feedback was used for diagnostic live calls.
+
+US33 verification (2026-10-14): 145 focused backend/regression cases passed,
+including 23 mocked Gemini sentiment provider/parser cases and 19 service/aggregate
+cases. Frontend: 50 focused US33/US31/US30 tests and production build passed.
+Final `mvn.cmd package` ran the full backend suite once: 706 passed, no failures,
+errors or skips. One live synthetic-only call using gemini-3.5-flash-lite returned
+HTTP 200; parsing succeeded with POSITIVE / NEGATIVE / NEUTRAL. No retries were made.
+Read-only PostgreSQL before/after snapshots matched: 506 Teachers, 903 Courses,
+1741 CourseOfferings and 10 Reviews; row checksums and US28 UNIQUE were unchanged.
+Moderation diagnostics and AccountSetupService file checksums also matched.
+Real browser smoke remains manual; the user's application was not started/stopped.
+
+## Agile backlog refinement — Retry Incomplete Review Moderation
+
+This story was added after real provider outages; it was not part of the original
+backlog. An authenticated STUDENT may manually retry their own SUBMITTED review.
+`POST /api/student/reviews/{reviewId}/moderation/retry` uses the existing session
+and CSRF header from `/api/auth/csrf`. It accepts no body or query fields. A foreign
+or missing review returns safe 404, PUBLISHED/NEEDS_CORRECTION returns 409,
+unauthenticated access returns 401 and a non-Student or invalid CSRF request is
+rejected by existing security. Multi-role accounts with STUDENT are allowed.
+
+The backend locks the owned Review briefly, checks its status and the **60-second
+cooldown**, stores `lastModerationAttemptAt`, and commits before calling Gemini.
+The same timestamp reservation is used for initial submission, US27 correction
+and US28 published updates before their existing AFTER_COMMIT moderation event.
+Rejected clicks and rolled-back transactions do not record an attempt or invoke AI.
+The nullable timestamp represents the latest reserved moderation attempt, including
+provider failures; `moderatedAt` still means completed moderation. Legacy SUBMITTED
+reviews with no attempt timestamp are immediately retryable.
+
+Two simultaneous retries cannot reserve the same review: after the first commits,
+the second sees the cooldown. No database lock is held across the provider call.
+Completion uses another brief lock and compares the event's microsecond-precision
+attempt timestamp with the current row, so a late result cannot complete a newer
+retry/correction/update. There is **no attempt counter, permanent limit, scheduler,
+queue or automatic retry**. A failed attempt can be retried after the cooldown.
+
+The existing US26 provider/policy is reused. ACCEPT becomes PUBLISHED; a violation
+becomes NEEDS_CORRECTION; provider failure retains SUBMITTED and the committed attempt
+timestamp. Rating, text, author, offering, academicTerm, createdAt and Review ID do
+not change on retry, and no new Review is inserted. US28 UNIQUE is unchanged.
+
+HTTP 200 returns the current safe own-review status DTO. Its two new operational
+fields are `retryModerationAvailable` and `retryAfterSeconds`; no raw attempt
+timestamp/provider details are exposed. Remaining seconds round up and reach zero
+at 60 seconds. Cooldown requests return HTTP 429, `Retry-After: <seconds>` and only
+`{message, retryAfterSeconds}`. No Teacher/public/analytics DTO receives these fields.
+
+Review Status shows Retry Moderation only for SUBMITTED, disables it while pending
+or cooling down, and displays a countdown derived from the server's remaining wait.
+The backend remains authoritative after F5 or in another tab. Success replaces the
+same status card with server data. Unconfirmed/network failures offer Refresh status
+instead of inventing an outcome. My Reviews links SUBMITTED reviews to this same
+retry/status page; Edit Review and Fix Feedback retain their existing flows.
+
+Schema setup is explicit: run `backend/sql/review-moderation-retry.sql` against the
+existing `student_feedback` database before starting the updated backend. It adds
+only `public.reviews.last_moderation_attempt_at timestamp(6) with time zone NULL`,
+with no default/backfill or changes to existing review data/constraints. This was
+applied locally during this story and verified through PostgreSQL metadata; normal
+Hibernate update is not the only record of this schema change.
+
+Manual smoke: start the updated application yourself, open an old SUBMITTED review
+through My Reviews, and click Retry Moderation. Verify the same Review ID becomes
+Published/Needs correction or remains Submitted if the provider is unavailable.
+For the last case, immediately retry from another tab: expect 429/cooldown, then
+retry after it expires. Do not alter Gemini configuration to simulate an outage;
+automated tests cover failures, concurrent tabs and stale provider responses.
+No real reviews were retried during automated implementation. US34 was not started.
+
+Verification: 16 retry tests and 159 affected backend regression tests passed.
+New test fixtures were corrected to send CSRF in the same header as the frontend
+and to mutate lazy JPA collections inside a transaction; production authorization
+was not relaxed. Frontend: 18 retry tests and 76 affected tests passed (one overly
+broad source assertion was corrected), and production build passed. Final Maven
+package ran the full suite once: 722 passed, no failures/errors/skips. Real
+PostgreSQL stayed at 506 Teachers / 903 Courses / 1741 CourseOfferings / 10 Reviews;
+all original field checksums and US28 UNIQUE matched before/after. Only the nullable
+attempt column was added. No live Gemini calls or real review retries were made.
+Gemini diagnostics and AccountSetupService were preserved; no commits/staging.
+
+## US34 — Common Topics / Concerns
+
+`GET /api/teacher/analytics/topics?courseId=<id>&term=<exact academic term>` is
+TEACHER-only. It reuses US31 scope validation and the US33 read-only published-text
+selection: the session's linked Teacher, owned CourseOffering(s), selected Course,
+exact Review academicTerm and PUBLISHED status. `teacherId`, unknown or duplicate
+parameters are rejected. Public/Student access is forbidden; no role system changed.
+
+Separate `TopicsAnalysisService → TopicsProvider → GeminiTopicsProvider` performs
+on-demand analysis. Only the anonymous published text array is sent; no ratings,
+IDs, authors, group/section, schedules, moderation metadata or sentiment output.
+The existing Gemini key/model/timeout configuration is reused without changing
+US26 or US33. Database reads finish before the bounded external request. There is
+no cache, persistence, schema migration, scheduled work or automatic retry.
+
+The prompt asks for recurring semantic themes supported by at least two distinct
+feedback items, separating neutral/positive topics from concerns. It treats texts
+as untrusted, allows criticism, forbids identifying details and requests short
+neutral English labels, without summaries, recommendations or sentiment percentages.
+Semantic recurrence is assessed by Gemini; JSON validation cannot prove that a
+label accurately represents the source. No student privacy threshold is claimed.
+
+Strict output: `{"topics":["Clear explanations"],"concerns":["Short deadlines"]}`.
+Each array has at most 5 labels, each at most 80 Unicode code points. Surrounding
+and repeated whitespace is normalized. Blank/control-character labels, duplicates
+(case-insensitive, including across both lists), excess items, unexpected fields,
+duplicate JSON keys and malformed/provider-blocked/truncated responses are rejected
+as unavailable, not repaired into invented analysis.
+
+The safe response includes course identity, exact term, `status`, `analysisAvailable`,
+`enoughRecurringFeedback`, `analyzedReviewCount`, `topics`, and `concerns`. Zero
+published reviews gives EMPTY; one gives INSUFFICIENT. Neither calls Gemini, and
+both report 0 analyzed reviews. A valid provider result with no recurring themes
+is AVAILABLE with empty lists and `enoughRecurringFeedback=false`. Failures return
+UNAVAILABLE with empty lists and null analyzed count. Diagnostics log only model,
+key presence, allowlisted category/reason, HTTP status and input count, never raw
+responses, exception messages, review texts or secrets.
+
+Teacher Analytics retains US31 filters and US33 sentiment, followed by Common
+Topics / Common Concerns. Changing course/term remounts the section, hides old
+results and cancels stale requests. Retry clears results and repeats only the topics
+request. Empty, insufficient and unavailable states use distinct safe messages.
+No individual review mapping, summary narrative, charts or US36 privacy UI was added.
+
+Manual smoke after starting the current backend/frontend: sign in as a linked
+Teacher, open `/teacher/analytics`, select an owned course/exact term, change each
+filter, then refresh the direct URL. Check sentiment still works, previous topics
+disappear during loading, and Retry appears if topic analysis fails. With zero/one
+published review the dedicated empty/insufficient message is expected.
+
+US34 verification: 166 focused backend tests passed, including 10 topics integration
+and 32 Gemini topics/parser tests plus US31/US33/moderation/retry regressions.
+53 focused frontend tests and the frontend production build passed. Maven package
+ran the full backend suite once: 764 passed, no failures/errors/skips. One optional
+synthetic Gemini call with four invented anonymous texts succeeded (HTTP 200,
+strict parsing passed, 1 topic and 1 concern); no real feedback was used in that
+call and arbitrary provider output was not logged. PostgreSQL before/after remained
+506 Teachers / 903 Courses / 1741 CourseOfferings / 10 Reviews, with identical row
+checksums and unchanged US28 UNIQUE. US33, US26 and AccountSetupService were unchanged.
+No normal backend/frontend server was started or stopped; test servers were closed.
+Browser smoke remains the manual check above. US35/US36 and Sprint 6 completion are
+not claimed. Existing uncommitted work was preserved; nothing staged or committed.
+
+## US35 — AI Summary
+
+`GET /api/teacher/analytics/summary?courseId=<id>&term=<exact academic term>` is
+TEACHER-only and reuses US31 validation and the existing published-text read.
+The authenticated account's linked Teacher determines ownership; course and exact
+Review academicTerm select the scope across that Teacher's relevant offerings.
+`Fall 2026` and `2026-2027 1 term` are distinct. Client-supplied teacher IDs, review
+IDs, raw feedback and other unsupported/duplicate query parameters are rejected.
+
+`SummaryAnalysisService → SummaryProvider → GeminiSummaryProvider` is independent
+of sentiment, topics and moderation. Only current PUBLISHED text strings go into
+the request, without ratings, author/Review/offering IDs, groupSection, schedule,
+verification, moderation, retry or timestamp metadata. Summary does not call or
+fall back to US33/US34 outputs. Database reads finish before the external request.
+The existing GEMINI_API_KEY/GEMINI_MODEL and bounded timeout configuration are reused.
+
+The prompt treats feedback as untrusted data, forbids obeying embedded commands,
+and requests one neutral English aggregate paragraph of 2–4 concise sentences.
+It requires grounding in the supplied texts, cautious wording, no identities,
+quotes, invented counts/percentages, causation, judgments, recommendations, scoring,
+sentiment categories or topic arrays. Content grounding and sentence quality are
+model instructions, not a factual correctness guarantee or US36 privacy protection.
+
+The strict provider response is exactly `{"summary":"..."}`. The server rejects
+malformed JSON, duplicate keys, trailing JSON, extra fields, missing/non-string/
+blank/overlong summaries, control characters and fenced/heading/list output.
+Whitespace is normalized into prose; the maximum is 1000 Unicode code points.
+Provider truncation/blocking/errors also fail closed. Diagnostic logs contain only
+model, key presence, safe category/reason, HTTP status and input count. They never
+include exception messages, secrets, prompts, review text or generated summary.
+
+The response contains course identity, exact term, status, analyzedReviewCount,
+summary, analysisAvailable and enoughFeedback. With zero published reviews it is
+EMPTY; with one it is INSUFFICIENT. Neither calls Gemini or paraphrases that one
+review; both return null summary and zero analyzed count. With 2+ reviews a valid
+result is AVAILABLE. Failure is UNAVAILABLE with null summary/count; enoughFeedback
+still describes the 2+ input prerequisite, not provider success. There is no cache,
+summary persistence, schema migration, timestamp storage or automatic retry.
+
+AI Summary appears after the existing Sentiment and Topics/Concerns sections.
+It has separate loading, success, empty, insufficient and temporary-failure states.
+Filter/account changes remount the section, hide previous results and abort old
+requests; late responses cannot update the next selection. Retry resets and requests
+only US35, without triggering moderation, sentiment or topics. Output is escaped
+React text in a paragraph, not HTML or raw JSON.
+
+Manual browser smoke after starting the current application: sign in as a linked
+Teacher, open `/teacher/analytics`, choose an owned course/exact term and verify all
+three independent sections remain visible. Change each filter, refresh the direct
+URL, and check old summary text is absent during loading. For zero/one published
+review expect the specific empty/insufficient message. Provider failure offers Retry
+only inside AI Summary. No US36 work or Sprint 6 completion is claimed.
+
+US35 verification: 207 focused backend tests passed, including 10 summary integration
+tests and 31 Gemini summary/parser tests plus affected US31/US33/US34/moderation/retry
+regressions. 71 frontend tests passed, including execution of the production summary
+effect with deferred HTTP responses to check stale course/term responses and isolated
+Retry. Frontend production build passed. Maven package ran the full backend suite
+once: 805 passed, no failures/errors/skips.
+
+Exactly one optional live synthetic call was attempted with three invented anonymous
+feedback texts. The configured gemini-3.5-flash-lite provider had a key present but
+timed out at the existing 8000 ms limit (TIMEOUT / REQUEST_TIMED_OUT, no HTTP status).
+No response was available for live parsing/content verification. No retry, secret
+output, real-review submission or timeout/configuration change was made.
+
+PostgreSQL remained 506 Teachers / 903 Courses / 1741 CourseOfferings / 10 Reviews.
+Before/after row checksums, public column/index metadata checksums and US28 UNIQUE
+were identical. No summary table/column or saved summary was introduced. Existing
+US26/US31/US33/US34 providers/services and AccountSetupService retained their file
+checksums. No normal server was started/stopped; temporary test servers closed and
+ports 8080/5173 were free. Browser smoke remains manual. All existing uncommitted
+work was preserved; no staging/commit and no US36 implementation.
+
+## US36 — Protect Student Privacy in Analytics
+
+`AnalyticsPrivacyPolicy.MIN_ANALYTICS_REVIEW_COUNT = 3` is the single shared rule
+for Teacher AI analytics. Only PUBLISHED Reviews in the authenticated linked
+Teacher + selected Course + exact Review academicTerm scope count. The existing
+Teacher-owned offerings are included; each Review counts once, even when several
+source offerings exist. This is a review threshold, not a count of distinct authors.
+Other teachers, courses, terms, SUBMITTED and NEEDS_CORRECTION never contribute.
+
+`GET /api/teacher/analytics/scope` now adds `privacyThresholdMet` without returning
+an actual count. Its internal grouped count replaces the previous distinct-term
+projection, retaining exact term options and fixed query count. The existing
+`hasPublishedFeedback` boolean remains for compatibility, but no separate small-
+sample availability message is displayed. No public feedback query was changed.
+
+Each of `/sentiment`, `/topics`, and `/summary` independently checks the same policy
+against its current PUBLISHED input list BEFORE any provider call. Below threshold,
+all return HTTP 200, `status=PRIVACY_PROTECTED`, `privacyThresholdMet=false`,
+`analysisAvailable=false`, and `analyzedReviewCount=null`. Sentiment counts/percentages
+and summary are null; topic/concern arrays are empty. This supersedes the earlier
+US33–US35 EMPTY/INSUFFICIENT states for 0/1/2 reviews; none is sent to Gemini.
+At 3+ reviews, existing results, recurrence behavior, provider diagnostics and
+temporary-provider-failure Retry behavior continue unchanged, with privacy eligibility
+true. Eligibility does not guarantee provider success.
+
+The frontend waits for scope eligibility before mounting any AI section. Below
+threshold, it shows one Analytics Privacy notice: "Not enough published feedback
+to display analytics while protecting student privacy." No exact small count,
+individual analysis section or AI Retry button is shown. Course/term/account keys
+remount the scope and clear old results immediately; aborted/late responses cannot
+restore previous analytics. If an individual endpoint reports that the published
+set has fallen below threshold after scope loading, the page closes all sections
+and shows the same single privacy notice. Refresh rechecks current eligibility.
+
+No privacy provider, live AI smoke, schema object, persisted count/eligibility or
+analytics result is introduced. US10 public anonymous feedback and US30 Teacher
+Course Feedback are unchanged. No moderation or AccountSetupService changes.
+
+Manual smoke with existing data only: open Teacher Analytics as a linked Teacher,
+select a scope below three published reviews and confirm one privacy notice with no
+AI requests/Retry. For an existing eligible scope, confirm all analyses load normally.
+Switch eligible → ineligible and back, then refresh the direct course/term URL.
+Do not create or edit real feedback just to make these scenarios available.
+
+US36 verification: 194 focused backend/regression tests and 97 frontend tests passed.
+The single final Maven package run passed all 813 backend tests (no failures,
+errors or skipped tests); the frontend production build also passed. US31 and
+US33–US35 regressions are green, including provider parsing and exact scope checks.
+Read-only PostgreSQL before/after snapshots match: 506 Teachers, 903 Courses,
+1,741 CourseOfferings and 10 Reviews. Row-content hashes, schema metadata and the
+US28 unique constraint are unchanged. Preserved provider/public-feedback files and
+AccountSetupService match their starting checksums. No live Gemini call was made.
+Automated frontend checks cover filter changes, stale responses and refresh;
+the manual browser scenarios above remain unperformed. Temporary test servers
+were closed; ports 8080 and 5173 were not listening at the final check. The user's
+IntelliJ process was not controlled. No staging, commit or next story was started.

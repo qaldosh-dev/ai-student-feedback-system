@@ -74,7 +74,7 @@ class ReviewStatusTest {
                 .andExpect(jsonPath("$.teacherName").value("Alex Person"))
                 .andExpect(jsonPath("$.academicTerm").value("2026-2027 1 term"))
                 .andExpect(jsonPath("$.rating").value(4)).andReturn().getResponse().getContentAsString();
-        assertEquals(Set.of("reviewId", "status", "submittedAt", "courseOfferingId", "courseCode", "courseName", "teacherName", "academicTerm", "rating", "moderatedAt", "moderationReasons", "text"), json.readTree(response).propertyNames());
+        assertEquals(Set.of("reviewId", "status", "submittedAt", "courseOfferingId", "courseCode", "courseName", "teacherName", "academicTerm", "rating", "moderatedAt", "moderationReasons", "text", "retryModerationAvailable", "retryAfterSeconds"), json.readTree(response).propertyNames());
         assertFalse(response.contains(EMAIL)); assertFalse(response.contains("unused"));
         assertEquals(service.status(EMAIL, reviewId), service.status(EMAIL, reviewId));
         em.flush(); em.clear();

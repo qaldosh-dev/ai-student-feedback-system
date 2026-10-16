@@ -25,6 +25,9 @@ public class ReviewEligibilityService {
         var owner = schedules.requireStudent(authenticatedEmail);
         var groups = new HashMap<Target, List<VerifiedCourse>>();
         for (var row : verified.findEligibilityEvidence(owner.getId(), ScheduleUpload.Status.VALID)) {
+            // A verified schedule never grants permission to review your own Teacher profile.
+            if (owner.getLinkedTeacher() != null && owner.getLinkedTeacher().getId()
+                    .equals(row.getCourseOffering().getTeacher().getId())) continue;
             if (!consistentEvidence(row)) continue;
             var key = new Target(row.getCourseOffering().getId(), row.getSourceEntry().getAcademicTerm());
             groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(row);
@@ -50,7 +53,7 @@ public class ReviewEligibilityService {
                 e.courseOfferingId().equals(courseOfferingId) && e.academicTerm().equals(academicTerm));
     }
 
-    /** Future submission must call this again; a frontend indicator grants no authority. */
+    /** Submission must call this again; a frontend indicator grants no authority. */
     public void requireReviewEligibility(String authenticatedEmail, Long courseOfferingId, String academicTerm) {
         if (!canReview(authenticatedEmail, courseOfferingId, academicTerm))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No verified schedule relationship for this target.");

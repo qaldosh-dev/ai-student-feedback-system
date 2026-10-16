@@ -90,6 +90,31 @@ class ReviewEligibilityTest {
         evidence(); assertTrue(service.canReview(EMAIL, offering.getId(), TERM));
         assertDoesNotThrow(() -> service.requireReviewEligibility(EMAIL, offering.getId(), TERM));
     }
+    @Test void ownTeacherExcludedFromListAndGuardWithoutDeletingEvidence() throws Exception {
+        evidence(); evidence(upload, offering, TERM, "04-N");
+        evidence(upload, offering, "2025-2026 2 term", "01-N");
+        var owner = users.findByEmail(EMAIL).orElseThrow();
+        owner.claimTeacher(teacher); users.saveAndFlush(owner);
+        assertTrue(service.list(EMAIL).isEmpty());
+        assertFalse(service.canReview(EMAIL, offering.getId(), TERM));
+        assertEquals(403, assertThrows(ResponseStatusException.class,
+                () -> service.requireReviewEligibility(EMAIL, offering.getId(), TERM)).getStatusCode().value());
+        mvc.perform(get(API).with(user(EMAIL).roles("STUDENT", "TEACHER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        assertEquals(3, verified.count());
+    }
+    @Test void linkedTeacherCanStillReviewAnotherTeachersVerifiedOffering() {
+        evidence();
+        var other = offer(teachers.saveAndFlush(new Teacher("Another Person", null)), course);
+        evidence(upload, other, TERM, "04-N");
+        var owner = users.findByEmail(EMAIL).orElseThrow();
+        owner.claimTeacher(teacher); users.saveAndFlush(owner);
+        var targets = service.list(EMAIL);
+        assertEquals(1, targets.size()); assertEquals(other.getId(), targets.getFirst().courseOfferingId());
+        assertTrue(service.canReview(EMAIL, other.getId(), TERM));
+        assertFalse(service.canReview(EMAIL, other.getId(), "another term"));
+        assertEquals(2, verified.count());
+    }
     @Test void catalogAloneDoesNotGrantEligibility() { assertFalse(service.canReview(EMAIL, offering.getId(), TERM)); }
     @Test void pendingDoesNotGrantEligibility() {
         pending.saveAndFlush(new PendingCatalogVerification(entry(upload, offering, TERM, "01-N"), PendingCatalogVerification.Reason.AMBIGUOUS_OFFERING));

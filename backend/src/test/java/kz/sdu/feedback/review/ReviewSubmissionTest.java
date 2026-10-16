@@ -88,6 +88,29 @@ class ReviewSubmissionTest {
         assertEquals(1, teachers.count()); assertEquals(1, courses.count()); assertEquals(1, offerings.count());
         assertEquals(1, verified.count()); assertEquals(0, pending.count()); assertEquals(1, entries.count());
     }
+    @ParameterizedTest @ValueSource(strings={"TEACHER", "ADMIN"})
+    void directSelfReviewForbiddenEvenWithStudentAndAdditionalRole(String additionalRole) throws Exception {
+        author.claimTeacher(offering.getTeacher()); users.saveAndFlush(author);
+        mvc.perform(post(API).with(user(EMAIL).roles("STUDENT", additionalRole)).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(body())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("This course is not available for review."));
+        assertEquals(0, reviews.count()); assertEquals(1, verified.count());
+        verifyNoInteractions(moderationProvider);
+    }
+    @Test void linkedToDifferentTeacherCanSubmitNormally() throws Exception {
+        author.claimTeacher(teachers.saveAndFlush(new Teacher("Different Teacher", null)));
+        users.saveAndFlush(author);
+        send(body()).andExpect(status().isCreated());
+        assertEquals(offering.getId(), reviews.findAll().getFirst().getCourseOffering().getId());
+        assertEquals(TERM, reviews.findAll().getFirst().getAcademicTerm());
+    }
+    @Test void selfReviewServiceCallAlsoForbidden() {
+        author.claimTeacher(offering.getTeacher()); users.saveAndFlush(author);
+        var failure = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.submit(EMAIL, new SubmitReviewRequest(offering.getId(), TERM, 4, "Clear explanations.")));
+        assertEquals(403, failure.getStatusCode().value()); assertEquals(0, reviews.count());
+    }
     @ParameterizedTest @ValueSource(ints={1,5}) void ratingBoundaries(int rating) throws Exception {
         var input = body(); input.put("rating", rating); send(input).andExpect(status().isCreated());
         assertEquals(rating, reviews.findAll().getFirst().getRating());

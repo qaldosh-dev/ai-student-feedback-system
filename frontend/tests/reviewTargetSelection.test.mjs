@@ -73,6 +73,20 @@ for (const search of [
 test('a previously selected relationship removed from current eligibility is rejected', () => {
   assert.equal(resolveReviewTarget([second], query(first)).kind, 'unavailable');
 });
+
+test('server excludes self-review target: no action or create form, including a direct URL', () => {
+  // The eligibility API removes first (the current user\'s linked Teacher); second remains eligible.
+  const eligible = [second];
+  for (const search of ['', query(first), ratedQuery(first, 5)]) {
+    const html = render(eligible, search);
+    assert.doesNotMatch(html, /Alex Person|Selected review target|out of 5|<textarea|type="submit"/);
+    assert.match(html, /aria-label="Review ABC 100, Morgan Person/);
+    assert.doesNotMatch(html, /teacherId|linkedTeacherId|Teacher ID/);
+    if (search) assert.match(html, /This course is not available for review/);
+  }
+  assert.equal(resolveReviewTarget(eligible, query(second)).kind, 'selected');
+  assert.match(render(eligible, query(second)), /Selected review target/);
+});
 test('other student, pending and unchecked targets absent from server list are not inferred', () => {
   for (const id of [50, 51, 52]) assert.equal(resolveReviewTarget(rows, query({ ...first, courseOfferingId: id })).kind, 'unavailable');
 });

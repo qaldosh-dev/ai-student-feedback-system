@@ -36,6 +36,9 @@ public class ReviewService {
             throw invalid("Invalid course offering or academic term.");
         validateRating(request.rating());
         String text = validatedText(request.text());
+        // Keep the author's Teacher link stable while checking eligibility and saving the review.
+        // This also serializes submissions; the lock ends before external moderation.
+        var author = users.findByEmailForUpdate(authenticatedEmail).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in required."));
         try {
             eligibility.requireReviewEligibility(authenticatedEmail, request.courseOfferingId(), request.academicTerm());
         } catch (ResponseStatusException denied) {
@@ -43,9 +46,6 @@ public class ReviewService {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This course is not available for review.");
             throw denied;
         }
-        // Serialize submissions by this author, including while legacy duplicates block installing UNIQUE.
-        // This lock ends at commit, before the external moderation request.
-        var author = users.findByEmailForUpdate(authenticatedEmail).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sign in required."));
         if (reviews.existsByAuthorIdAndCourseOfferingIdAndAcademicTerm(author.getId(), request.courseOfferingId(), request.academicTerm()))
             throw duplicate();
         var offering = offerings.findById(request.courseOfferingId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "This course is not available for review."));

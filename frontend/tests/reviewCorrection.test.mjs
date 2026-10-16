@@ -27,7 +27,7 @@ const receipt = { reviewId: 7, submitted: true, status: 'SUBMITTED' };
 
 test('flagged status shows reasons before editing and offers Edit Feedback only', () => {
   const html = render(flagged);
-  assert.match(html, /Needs correction/); assert.match(html, /Remove personal insults/); assert.match(html, /Edit Feedback/);
+  assert.match(html, /Needs Correction/); assert.match(html, /Remove personal insults/); assert.match(html, /Edit Feedback/);
   assert.doesNotMatch(html, /textarea|Submit Review|type="radio"|My Reviews/);
 });
 test('editor preloads existing feedback with count and no rating or target inputs', () => {

@@ -1,3 +1,5 @@
+import EmptyState from './EmptyState';
+import LoadingState from './LoadingState';
 import type { Course } from '../api/catalog';
 import type { RelationshipContext } from '../pages/relationshipHighlights';
 import VerifiedRelationships from './VerifiedRelationships';
@@ -37,16 +39,15 @@ export default function CoursesSection({ courses, relationships, loading, error,
       </div>
 
       {loading ? (
-        <div className="state-message" role="status">Loading courses…</div>
+        <LoadingState label="Loading courses…" />
       ) : error ? (
         <div className="state-message error-message" role="alert">
           <p>We couldn’t load courses. Please try again.</p>
           <button type="button" onClick={onRetry}>Try again</button>
         </div>
       ) : courses.length === 0 ? (
-        <div className="state-message" role="status">
-          {hasActiveSearch ? 'No courses found.' : 'No courses in the catalog yet.'}
-        </div>
+        <EmptyState title={hasActiveSearch ? 'No courses found.' : 'No courses in the catalog yet.'}
+          description={hasActiveSearch ? 'Try another search or filter.' : 'Check back later for catalog updates.'} />
       ) : (
         <ul className="card-grid course-grid">
           {courses.map((course) => (

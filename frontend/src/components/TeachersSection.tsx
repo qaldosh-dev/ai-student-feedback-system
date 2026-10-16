@@ -1,3 +1,5 @@
+import EmptyState from './EmptyState';
+import LoadingState from './LoadingState';
 import type { Teacher, TeacherSort } from '../api/catalog';
 import type { RelationshipContext } from '../pages/relationshipHighlights';
 import VerifiedRelationships from './VerifiedRelationships';
@@ -51,16 +53,15 @@ export default function TeachersSection({ teachers, relationships, loading, erro
       </div>
 
       {loading ? (
-        <div className="state-message" role="status">Loading teachers…</div>
+        <LoadingState label="Loading teachers…" />
       ) : error ? (
         <div className="state-message error-message" role="alert">
           <p>We couldn’t load teachers. Please try again.</p>
           <button type="button" onClick={onRetry}>Try again</button>
         </div>
       ) : teachers.length === 0 ? (
-        <div className="state-message" role="status">
-          {hasActiveSearch ? 'No teachers found.' : 'No teachers in the catalog yet.'}
-        </div>
+        <EmptyState title={hasActiveSearch ? 'No teachers found.' : 'No teachers in the catalog yet.'}
+          description={hasActiveSearch ? 'Try another search or filter.' : 'Check back later for catalog updates.'} />
       ) : (
         <ul className="card-grid teacher-grid">
           {teachers.map((teacher) => (

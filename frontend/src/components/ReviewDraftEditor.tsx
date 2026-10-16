@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import { useEffect, useRef, useState } from 'react';
 import type { ReviewEligibility } from '../api/scheduleUploads';
 import { FEEDBACK_MAX_LENGTH, loadDraft, saveDraft, validDraft } from '../pages/reviewDraft';
@@ -7,6 +8,7 @@ import { completeDraft, createReviewSubmission } from '../pages/reviewSubmission
 
 // Mounted only after the current server eligibility response authorizes this target.
 export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { target: ReviewEligibility; urlRating: number | null; onSubmitted?: (reviewId: number) => void }) {
+  const notify = useToast();
   const [draft, setDraft] = useState(() => loadDraft(target, urlRating));
   const [storageFailed, setStorageFailed] = useState(false);
   const [submission] = useState(() => createReviewSubmission(target));
@@ -32,9 +34,11 @@ export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { 
       const result = await submission.submit(draft);
       if (result && mounted.current) {
         setSubmitted(true); setStorageFailed(!result.draftCleared);
+        notify('reviewSubmitted');
         onSubmitted?.(result.reviewId);
       }
     } catch (failure) {
+      if (mounted.current) notify('reviewError');
       if (mounted.current) setError(failure instanceof Error && failure.name !== 'TimeoutError' && failure.name !== 'TypeError'
         ? failure.message : 'Submission could not be confirmed. Your draft has been kept; check your connection before retrying.');
     } finally { if (mounted.current) setPending(false); }

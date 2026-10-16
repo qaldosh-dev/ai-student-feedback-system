@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -42,13 +44,13 @@ function TeacherFeedback() {
 export function TeacherFeedbackContent({ groups, loading, error, onRefresh }: {
   groups: TeacherFeedbackGroup[]; loading: boolean; error: string; onRefresh: () => void;
 }) {
-  if (loading) return <p role="status">Loading course feedback…</p>;
+  if (loading) return <LoadingState label="Loading course feedback…" />;
   if (error) return <div className="state-message error-message" role="alert">
     <p>{error}</p><button type="button" onClick={onRefresh}>Retry</button>
   </div>;
   return <>
     <button type="button" onClick={onRefresh}>Refresh feedback</button>
-    {groups.length === 0 ? <p className="state-message">No published feedback yet.</p> :
+    {groups.length === 0 ? <EmptyState title="No published feedback yet." description="Published student feedback will appear here." /> :
       <ul className="schedule-list">
         {groups.map(group => <li key={JSON.stringify([group.courseOfferingId, group.academicTerm])} className="state-message schedule-card">
           <h2>{group.courseCode} — {group.courseName}</h2>

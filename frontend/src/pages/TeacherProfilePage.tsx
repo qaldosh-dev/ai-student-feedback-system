@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getTeacherProfile } from '../api/catalog';
@@ -35,7 +37,7 @@ function Profile({ teacherId }: { teacherId: string }) {
 export function TeacherProfileContent({ profile, loading, error, onRetry }: {
   profile: TeacherProfile | null; loading: boolean; error: string; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading teacher profile…</p>;
+  if (loading) return <LoadingState label="Loading teacher profile…" />;
   if (error) return <div className="state-message error-message" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>Retry</button></div>;
   if (!profile) return <p className="state-message">Teacher not found.</p>;
   return <>
@@ -43,7 +45,7 @@ export function TeacherProfileContent({ profile, loading, error, onRetry }: {
     <OverallRatingStats key={profile.id} teacherId={profile.id} />
     <section className="catalog-section" aria-labelledby="profile-courses-title">
       <h2 id="profile-courses-title">Courses taught</h2>
-      {profile.courseOfferings.length === 0 ? <p className="state-message">No courses listed for this teacher yet.</p> :
+      {profile.courseOfferings.length === 0 ? <EmptyState title="No courses listed for this teacher yet." description="Check the public catalog again later." /> :
         <ul className="schedule-list">
           {profile.courseOfferings.map(course => <li key={JSON.stringify([course.courseId, course.academicTerm])} className="course-card schedule-card">
             <h3>{course.courseCode} — {course.courseName}</h3>

@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -55,10 +57,10 @@ export function MyReviewsContent({ reviews, loading, error, editing, onEdit, onC
   onEdit: (id: number) => void; onCancel: () => void; onRefresh: () => void; onSessionExpired: () => void;
 }) {
   return <>
-    {loading && <p role="status">Loading your reviews…</p>}
+    {loading && <LoadingState label="Loading your reviews…" />}
     {error && <p role="alert">{error} Previously loaded reviews may be out of date.</p>}
     <button type="button" disabled={loading || editing !== null} onClick={onRefresh}>Refresh reviews</button>
-    {!loading && !error && reviews.length === 0 && <p className="state-message">You haven't submitted any reviews yet. <Link to="/student/verified-courses">View Verified Courses</Link></p>}
+    {!loading && !error && reviews.length === 0 && <EmptyState title="No reviews yet." description="Review one of your verified courses." action={{ to: "/student/reviews/new", label: "Review a Course" }} />}
     <ul className="schedule-list">
       {reviews.map(review => <li key={review.reviewId} className="state-message schedule-card">
         <h2>{review.courseCode} — {review.courseName}</h2>

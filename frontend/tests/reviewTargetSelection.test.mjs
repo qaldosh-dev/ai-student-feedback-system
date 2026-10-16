@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
+import { MemoryRouter } from 'react-router';
 import { renderToStaticMarkup } from 'react-dom/server';
 const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
 after(() => server.close());
@@ -11,7 +12,7 @@ const first = { courseOfferingId: 1, courseId: 10, teacherId: 20, courseCode: 'A
 const second = { ...first, courseOfferingId: 2, teacherId: 21, teacherName: 'Morgan Person', groupSections: ['04-N'] };
 const rows = [first, second];
 const query = target => reviewTargetQuery(target).toString();
-const render = (data = rows, search = '') => renderToStaticMarkup(createElement(ReviewTargetSelection, { reviews: [], rows: data, search, onSelect() {}, onRate() {} }));
+const render = (data = rows, search = '') => renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(ReviewTargetSelection, { reviews: [], rows: data, search, onSelect() {}, onRate() {} })));
 const summary = html => html.match(/<section[\s\S]*?<\/section>/)?.[0] ?? '';
 
 test('eligible targets render once each in server order', () => {

@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import { useEffect, useRef, useState } from 'react';
 import { AccountSessionExpired } from '../api/auth';
 import { ModerationRetryCooldown, retryReviewModeration } from '../api/reviews';
@@ -7,6 +8,7 @@ export default function ReviewModerationRetry({ review, onUpdated, onRefresh, on
   review: ReviewStatusResponse; onUpdated: (result: ReviewStatusResponse) => void;
   onRefresh: () => void; onSessionExpired?: () => void;
 }) {
+  const notify = useToast();
   const [remaining, setRemaining] = useState(review.retryAfterSeconds);
   const [deadline, setDeadline] = useState(() => Date.now() + review.retryAfterSeconds * 1000);
   const [pending, setPending] = useState(false);
@@ -26,7 +28,7 @@ export default function ReviewModerationRetry({ review, onUpdated, onRefresh, on
     busy.current = true; setPending(true); setError('');
     try {
       const result = await retryReviewModeration(review.reviewId);
-      if (alive.current) onUpdated(result);
+      if (alive.current) { notify('retryCompleted'); onUpdated(result); }
     } catch (failure) {
       if (!alive.current) return;
       if (failure instanceof AccountSessionExpired) onSessionExpired?.();
@@ -34,6 +36,7 @@ export default function ReviewModerationRetry({ review, onUpdated, onRefresh, on
         setRemaining(failure.retryAfterSeconds); setDeadline(Date.now() + failure.retryAfterSeconds * 1000);
       } else {
         // No untrusted network/provider exception messages are displayed.
+        notify('reviewError');
         setError('Moderation retry could not be confirmed. Refresh the status before trying again.');
       }
     } finally {

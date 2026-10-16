@@ -26,7 +26,7 @@ function elements(node) {
 test('AI Summary renders one prose paragraph, not JSON, topics or sentiment', () => {
   const html = render();
   assert.match(html, /<h2 id="summary-heading">AI Summary<\/h2>/);
-  assert.ok(html.includes(`<p class="state-message">${data.summary}</p>`));
+  assert.ok(html.includes(`<p>${data.summary}</p>`));
   assert.doesNotMatch(html, /<li|<ul|<pre|<code|<canvas|<svg|Sentiment|Common Topics|Common Concerns|%|\{"summary"/);
 });
 

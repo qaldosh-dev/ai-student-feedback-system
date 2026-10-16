@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import { useEffect, useRef, useState } from 'react';
 import { AccountSessionExpired } from '../api/auth';
 import { correctReview } from '../api/reviews';
@@ -6,6 +7,7 @@ import { FEEDBACK_MAX_LENGTH } from '../pages/reviewDraft';
 export default function ReviewCorrectionEditor({ reviewId, initialText, onSaved, onSessionExpired }: {
   reviewId: number; initialText: string; onSaved: () => void; onSessionExpired?: () => void;
 }) {
+  const notify = useToast();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(initialText);
   const [pending, setPending] = useState(false);
@@ -19,9 +21,10 @@ export default function ReviewCorrectionEditor({ reviewId, initialText, onSaved,
     inFlight.current = true; setPending(true); setError('');
     try {
       await correctReview(reviewId, text);
-      if (mounted.current) onSaved(); // Reload server status; never guess the new moderation outcome.
+      if (mounted.current) { notify('correctionSubmitted'); onSaved(); } // Reload server status; never guess the new moderation outcome.
     } catch (failure) {
       if (!mounted.current) return;
+      notify('reviewError');
       if (failure instanceof AccountSessionExpired) onSessionExpired?.();
       setError(failure instanceof Error && failure.name !== 'TypeError' && failure.name !== 'TimeoutError'
         ? failure.message : 'Correction could not be confirmed. Refresh the status before trying again.');

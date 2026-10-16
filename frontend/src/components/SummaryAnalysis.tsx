@@ -1,3 +1,5 @@
+import LoadingState from './LoadingState';
+import StatusBadge from './StatusBadge';
 import { useEffect, useState } from 'react';
 import AnalyticsPrivacyNotice from './AnalyticsPrivacyNotice';
 import { useAuth } from '../auth/AuthContext';
@@ -35,10 +37,11 @@ export function SummaryContent({ data, loading, onRetry }: {
   if (!loading && data?.privacyThresholdMet === false) return <AnalyticsPrivacyNotice />;
   return <section aria-labelledby="summary-heading">
     <h2 id="summary-heading">AI Summary</h2>
-    {loading ? <p role="status">Generating AI summary...</p>
+    {loading ? <LoadingState label="Generating AI summary..." />
       : data?.status === 'AVAILABLE' && data.analysisAvailable && data.enoughFeedback && data.summary
-        ? <p className="state-message">{data.summary}</p>
+        ? <div className="state-message"><StatusBadge status={data.status} /><p>{data.summary}</p></div>
       : <div className="state-message" role="status">
+        {data?.status === 'UNAVAILABLE' && <StatusBadge status={data.status} />}
         <p>AI summary is temporarily unavailable.</p>
         <button type="button" onClick={onRetry}>Retry</button>
       </div>}

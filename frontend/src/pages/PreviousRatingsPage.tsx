@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getPreviousRatings } from '../api/previousRatings';
@@ -33,7 +35,7 @@ function History({ teacherId, courseId }: { teacherId: string; courseId: string 
 export function PreviousRatingsContent({ data, loading, error, onRetry }: {
   data: PreviousRatings | null; loading: boolean; error: string; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading previous ratings…</p>;
+  if (loading) return <LoadingState label="Loading previous ratings…" />;
   if (error) return <div className="state-message error-message" role="alert"><p>{error}</p><button onClick={onRetry}>Retry</button></div>;
   if (!data) return <p className="state-message">Rating history not found.</p>;
   const separateOfferings = new Set(data.ratings.map(row => row.courseOfferingId)).size > 1;
@@ -41,7 +43,7 @@ export function PreviousRatingsContent({ data, loading, error, onRetry }: {
     <h2><Link to={`/teachers/${data.teacherId}`}>{data.teacherName}</Link></h2>
     <h2><Link to={`/courses/${data.courseId}`}>{data.courseCode} — {data.courseName}</Link></h2>
     <p><Link to={`/teachers/${data.teacherId}/courses/${data.courseId}/feedback`}>View Feedback</Link></p>
-    {data.ratings.length === 0 ? <p className="state-message">No published ratings yet.</p> : <>
+    {data.ratings.length === 0 ? <EmptyState title="No published ratings yet." description="Previous ratings will appear after feedback is published." /> : <>
       <p>Terms are shown as recorded, in text order. Separate course offerings are not combined.</p>
       <ul className="schedule-list">
         {data.ratings.map(row => <li key={JSON.stringify([row.courseOfferingId, row.academicTerm])} className="course-card schedule-card">

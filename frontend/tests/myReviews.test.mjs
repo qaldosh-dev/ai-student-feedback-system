@@ -50,8 +50,8 @@ test('own history loads independently on every direct load/refresh with session,
 test('loading, empty and failed states are distinct; failure retains existing review', () => {
   assert.match(render({ reviews: [], loading: true }), /Loading your reviews/);
   assert.doesNotMatch(render({ reviews: [], loading: true }), /haven&#x27;t/);
-  assert.match(render({ reviews: [] }), /haven&#x27;t submitted any reviews/);
-  assert.match(render({ reviews: [] }), /\/student\/verified-courses/);
+  assert.match(render({ reviews: [] }), /No reviews yet/);
+  assert.match(render({ reviews: [] }), /\/student\/reviews\/new/);
   const html = render({ error: 'Could not load your reviews. Please try again.' });
   assert.match(html, /role="alert"/); assert.match(html, /Current feedback/); assert.match(html, /Refresh reviews/);
   assert.doesNotMatch(html, /Edit Review|Fix Feedback/);

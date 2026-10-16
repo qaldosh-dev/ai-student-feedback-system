@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import LoadingState from './LoadingState';
+import StatusBadge from './StatusBadge';
 import AnalyticsPrivacyNotice from './AnalyticsPrivacyNotice';
 import { useAuth } from '../auth/AuthContext';
 import { AccountSessionExpired } from '../api/auth';
@@ -36,13 +38,15 @@ export function TopicsContent({ data, loading, onRetry }: {
   if (!loading && data?.privacyThresholdMet === false) return <AnalyticsPrivacyNotice />;
   return <section aria-labelledby="topics-heading">
     <h2 id="topics-heading">Common Topics</h2>
-    {loading ? <p role="status">Analyzing recurring themes…</p>
+    {loading ? <LoadingState label="Analyzing recurring themes…" />
       : available && !data.enoughRecurringFeedback
         ? <p className="state-message">Not enough recurring feedback to identify common topics yet.</p>
       : available ? <>
+        <StatusBadge status={data.status} />
         {data.topics.length ? <ul>{data.topics.map(label => <li key={label}>{label}</li>)}</ul>
           : <p>No recurring topics identified.</p>}
       </> : <div className="state-message" role="status">
+        {data?.status === 'UNAVAILABLE' && <StatusBadge status={data.status} />}
         <p>Topic analysis is temporarily unavailable.</p>
         <button type="button" onClick={onRetry}>Retry</button>
       </div>}

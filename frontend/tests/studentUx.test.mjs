@@ -49,16 +49,16 @@ test('all Student detail pages use the common back control', async () => {
 test('schedule upload cards retain filename, date, term, count, status and details link', () => {
   const html = render(ScheduleUploadCards, { uploads: [{ id: 12, originalFilename: 'Detailed.pdf', uploadedAt: '2026-10-01T00:00:00Z', status: 'VALID', academicTerms: [target.academicTerm], extractedCount: 10, validationMessage: null }] });
   for (const text of ['Detailed.pdf', 'Uploaded:', 'Valid', target.academicTerm, '10 extracted entries', 'View extracted information']) assert.ok(html.includes(text));
-  assert.match(html, /student-badge valid/); assert.match(html, /href="\/student\/schedules\/12"/);
+  assert.match(html, /status-badge status-success/); assert.match(html, /href="\/student\/schedules\/12"/);
 });
 test('invalid upload keeps safe validation reason without an extraction action', () => {
   const html = render(ScheduleUploadCards, { uploads: [{ id: 12, originalFilename: 'Compact.pdf', uploadedAt: '2026-10-01T00:00:00Z', status: 'INVALID', academicTerms: [], extractedCount: 0, validationMessage: 'Detailed schedule required.' }] });
-  assert.match(html, /student-badge invalid/); assert.match(html, /Detailed schedule required/); assert.doesNotMatch(html, /View extracted information/);
+  assert.match(html, /status-badge status-danger/); assert.match(html, /Detailed schedule required/); assert.doesNotMatch(html, /View extracted information/);
 });
 test('entry badges retain Verified, Pending reason, Not checked and complete section identifiers', () => {
   const entries = ['VERIFIED', 'PENDING', 'NOT_CHECKED'].map((status, i) => ({ ...target, id: i + 1, groupSection: '15-P', verificationStatus: status, verificationReason: status === 'PENDING' ? 'NO_COURSE_OFFERING' : null }));
   const html = render(ExtractedEntryCards, { entries });
-  for (const value of ['student-badge verified', 'student-badge pending', 'Not checked', '15-P', 'their relationship was not found']) assert.ok(html.includes(value));
+  for (const value of ['status-badge status-success', 'status-badge status-warning', 'Not checked', '15-P', 'their relationship was not found']) assert.ok(html.includes(value));
   assert.doesNotMatch(html, /Rejected|practice|lecture/);
 });
 test('no existing review offers Review and selected target gets the existing create editor', () => {

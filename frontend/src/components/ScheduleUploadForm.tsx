@@ -1,3 +1,5 @@
+import { useToast } from './ToastProvider';
+import StatusBadge from './StatusBadge';
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AccountSessionExpired } from '../api/auth';
@@ -7,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Link } from 'react-router';
 
 export default function ScheduleUploadForm({ onUploaded }: { onUploaded?: () => void }) {
+  const notify = useToast();
   const { expireSession } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,11 +28,14 @@ export default function ScheduleUploadForm({ onUploaded }: { onUploaded?: () => 
     }
     setBusy(true);
     try {
-      setUpload(await uploadSchedule(file));
+      const result = await uploadSchedule(file);
+      setUpload(result);
+      notify(result.status === 'INVALID' ? 'uploadInvalid' : 'uploadSuccess');
       onUploaded?.();
       setFile(null);
       if (input.current) input.current.value = '';
     } catch (failure) {
+      notify('uploadError');
       if (failure instanceof AccountSessionExpired) expireSession();
       setError(failure instanceof Error ? failure.message : 'Upload failed. Please try again.');
     } finally { setBusy(false); }
@@ -52,7 +58,7 @@ export default function ScheduleUploadForm({ onUploaded }: { onUploaded?: () => 
         : upload.status === 'INVALID' ? 'File uploaded, but validation failed.' : 'File uploaded successfully'}</strong></p>
       <p>{upload.originalFilename}</p>
       <p>Uploaded: {new Date(upload.uploadedAt).toLocaleString()}</p>
-      <p>Status: {upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</p>
+      <p>Status: <StatusBadge status={upload.status} /></p>
       {upload.status === 'VALID' && <Link className="student-link-button" to={`/student/schedules/${upload.id}`}>View extracted information</Link>}
       {upload.validationMessage && <p>{upload.validationMessage}</p>}
     </div>}

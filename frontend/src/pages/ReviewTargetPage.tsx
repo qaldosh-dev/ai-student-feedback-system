@@ -1,3 +1,6 @@
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -77,7 +80,7 @@ function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
     <StudentBackLink />
     <h1>Review a Course</h1>
     <p>Choose the course, teacher and academic term for your feedback.</p>
-    {loading ? <p role="status">Loading available courses…</p> : error ? <div className="state-message error-message" role="alert">
+    {loading ? <LoadingState label="Loading available courses…" /> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
     </div> : <ReviewTargetSelection rows={rows} reviews={reviews} search={search} onSelect={onSelect} onSubmitted={onSubmitted} />}
   </main>;
@@ -112,10 +115,7 @@ export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmi
       {selectedReview ? <ExistingReviewAction review={selectedReview} />
         : <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} />}
     </section>}
-    {rows.length === 0 ? <div className="state-message">
-      <p>No verified courses are currently available for review.</p>
-      <p>Upload and verify your Detailed Schedule to make eligible courses available.</p>
-    </div> : <>
+    {rows.length === 0 ? <EmptyState title="No verified courses are currently available for review." description="Upload and verify your Detailed Schedule to make eligible courses available." action={{ to: "/student/schedules", label: "Upload Schedule" }} /> : <>
       <p>{rows.length} available review targets</p>
       <ul className="schedule-list">
         {rows.map(target => {
@@ -139,7 +139,7 @@ export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmi
 function ExistingReviewAction({ review }: { review: OwnReview }) {
   const action = reviewAction(review);
   return <div className="student-card-actions">
-    <span className={`student-badge ${review.status.toLowerCase()}`}>{action.status}</span>
+    <StatusBadge status={review.status} />
     <Link className="student-link-button" to={action.href}>{action.label}</Link>
   </div>;
 }

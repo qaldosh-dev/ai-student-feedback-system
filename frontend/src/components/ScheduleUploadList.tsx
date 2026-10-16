@@ -1,3 +1,6 @@
+import StatusBadge from './StatusBadge';
+import EmptyState from './EmptyState';
+import LoadingState from './LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -28,9 +31,9 @@ export default function ScheduleUploadList({ refreshKey }: { refreshKey: number 
 
   return <section className="schedule-upload" aria-labelledby="my-schedules-title">
     <h2 id="my-schedules-title">My Schedule Uploads</h2>
-    {loading ? <p role="status">Loading your uploads…</p> : error ? <div className="state-message error-message" role="alert">
+    {loading ? <LoadingState label="Loading your uploads…" /> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
-    </div> : uploads.length === 0 ? <p className="state-message">You have not uploaded a schedule yet.</p> : <ScheduleUploadCards uploads={uploads} />}
+    </div> : uploads.length === 0 ? <EmptyState title="You have not uploaded a schedule yet." description="Choose your Detailed/Full Schedule PDF using the upload form above." /> : <ScheduleUploadCards uploads={uploads} />}
   </section>;
 }
 
@@ -39,7 +42,7 @@ export function ScheduleUploadCards({ uploads }: { uploads: ScheduleUploadView[]
         {uploads.map(upload => <li key={upload.id} className="course-card schedule-card">
           <h3>{upload.originalFilename}</h3>
           <p className="student-meta">Upload #{upload.id} · Uploaded: {new Date(upload.uploadedAt).toLocaleString()}</p>
-          <p>Validation: <span className={`student-badge ${upload.status.toLowerCase()}`}>{upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</span></p>
+          <p>Validation: <StatusBadge status={upload.status} /></p>
           {upload.academicTerms.map(term => <p key={term}>Academic Term: {term}</p>)}
           {upload.academicTerms.length === 0 && <p className="student-meta">Academic Term: Not available</p>}
           {upload.validationMessage && <p>{upload.validationMessage}</p>}

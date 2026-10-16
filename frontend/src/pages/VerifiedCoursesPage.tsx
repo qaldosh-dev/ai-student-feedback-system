@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -39,7 +41,7 @@ function VerifiedCourses() {
     <h1>Verified Courses</h1>
     <p>These schedule entries match a course and teacher relationship in the catalog.
       Academic term and group come from your schedule; the catalog does not independently confirm enrollment.</p>
-    {loading ? <p role="status">Loading verified courses…</p> : error ? <div className="state-message error-message" role="alert">
+    {loading ? <LoadingState label="Loading verified courses…" /> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
     </div> : <VerifiedCourseCards rows={rows} />}
   </main>;
@@ -47,7 +49,7 @@ function VerifiedCourses() {
 
 export function VerifiedCourseCards({ rows }: { rows: readonly VerifiedCourse[] }) {
   const courses = groupVerifiedCourses(rows);
-  return courses.length === 0 ? <p className="state-message">No verified courses are available yet.</p> : <>
+  return courses.length === 0 ? <EmptyState title="No verified courses are available yet." description="Upload a schedule to verify your courses." action={{ to: '/student/schedules', label: 'Upload Schedule' }} /> : <>
       <p>{courses.length} verified courses</p>
       <ul className="schedule-list">
         {courses.map(({ key, course: row, uploadIds, groupSections }) => <li key={key} className="course-card schedule-card">

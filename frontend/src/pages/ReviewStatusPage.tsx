@@ -1,3 +1,4 @@
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -54,7 +55,7 @@ export function ReviewStatusContent({ data, loading, error, onRetry, onSessionEx
   data: ReviewStatusResponse | null; loading: boolean; error: string; onRetry: () => void; onSessionExpired?: () => void;
   onUpdated?: (result: ReviewStatusResponse) => void;
 }) {
-  if (loading) return <p role="status">Loading review status…</p>;
+  if (loading) return <LoadingState label="Loading review status…" />;
   if (error) return <div className="state-message error-message" role="alert">
     <p>{error}</p><button type="button" onClick={onRetry}>Retry</button>
   </div>;

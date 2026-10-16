@@ -1,3 +1,4 @@
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import type { CurrentUser, UserRole } from '../api/auth';
@@ -49,7 +50,7 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
   return (
     <main id="main" className="container role-area">
       <h1>{title}</h1>
-      {loading ? <p role="status">Loading your area…</p> : error ? (
+      {loading ? <LoadingState label="Loading your area…" /> : error ? (
         <div className="state-message error-message" role="alert">
           <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
         </div>

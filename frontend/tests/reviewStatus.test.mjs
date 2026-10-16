@@ -33,7 +33,7 @@ test('Needs correction displays backend-defined reasons and Edit Feedback, witho
     { category: 'THREAT', message: 'Remove threatening language.' },
     { category: 'PERSONAL_INSULT', message: 'Remove personal insults and focus on the learning experience.' },
   ], rawResponse: 'private provider payload', email: 'private@example.test' } });
-  assert.match(html, /Needs correction/); assert.match(html, /Remove threatening language/); assert.match(html, /Remove personal insults/);
+  assert.match(html, /Needs Correction/); assert.match(html, /Remove threatening language/); assert.match(html, /Remove personal insults/);
   assert.match(html, /Edit Feedback/);
   assert.doesNotMatch(html, /private provider|private@example|<form|textarea/);
 });

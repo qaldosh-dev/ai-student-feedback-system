@@ -1,3 +1,4 @@
+import { useToast } from './ToastProvider';
 import { useEffect, useRef, useState } from 'react';
 import { AccountSessionExpired } from '../api/auth';
 import { updatePublishedReview } from '../api/reviews';
@@ -9,6 +10,7 @@ import RatingInput from './RatingInput';
 export default function PublishedReviewEditor({ reviewId, initialRating, initialText, onSaved, onCancel, onSessionExpired }: {
   reviewId: number; initialRating: number; initialText: string; onSaved: () => void; onCancel: () => void; onSessionExpired: () => void;
 }) {
+  const notify = useToast();
   const [draft, setDraft] = useState<ReviewDraft>({ rating: initialRating, text: initialText });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -21,9 +23,10 @@ export default function PublishedReviewEditor({ reviewId, initialRating, initial
     inFlight.current = true; setPending(true); setError('');
     try {
       await updatePublishedReview(reviewId, draft.rating, draft.text);
-      if (mounted.current) onSaved();
+      if (mounted.current) { notify('reviewUpdated'); onSaved(); }
     } catch (failure) {
       if (!mounted.current) return;
+      notify('reviewError');
       if (failure instanceof AccountSessionExpired) onSessionExpired();
       else setError(failure instanceof Error && failure.name !== 'TypeError' && failure.name !== 'TimeoutError'
         ? failure.message : 'Update could not be confirmed. Refresh your reviews before trying again.');

@@ -1,3 +1,4 @@
+import LoadingState from './LoadingState';
 import { useEffect, useState } from 'react';
 import { getOverallRating } from '../api/overallRating';
 import type { OverallRating } from '../api/overallRating';
@@ -26,7 +27,7 @@ export default function OverallRatingStats({ teacherId }: { teacherId: number })
 export function OverallRatingContent({ data, loading, error, onRetry }: {
   data: OverallRating | null; loading: boolean; error: string; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading overall rating…</p>;
+  if (loading) return <LoadingState label="Loading overall rating…" />;
   if (error) return <div className="state-message error-message" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>Retry</button></div>;
   if (!data) return <p className="state-message">Teacher not found.</p>;
   if (data.publishedReviewCount === 0 || data.averageRating === null)

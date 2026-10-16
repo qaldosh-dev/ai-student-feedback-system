@@ -1,3 +1,5 @@
+import LoadingState from './LoadingState';
+import StatusBadge from './StatusBadge';
 import { useEffect, useState } from 'react';
 import AnalyticsPrivacyNotice from './AnalyticsPrivacyNotice';
 import { useAuth } from '../auth/AuthContext';
@@ -37,14 +39,16 @@ export function SentimentContent({ data, loading, onRetry }: {
   if (!loading && data?.privacyThresholdMet === false) return <AnalyticsPrivacyNotice />;
   return <section aria-labelledby="sentiment-heading">
     <h2 id="sentiment-heading">Sentiment Analysis</h2>
-    {loading ? <p role="status">Analyzing published feedback…</p>
+    {loading ? <LoadingState label="Analyzing published feedback…" />
       : data?.status === 'AVAILABLE' && data.analysisAvailable && data.overallSentiment ? <div className="state-message">
+        <StatusBadge status={data.status} />
         <p><strong>Overall sentiment:</strong> {labels[data.overallSentiment]}</p>
         <p>Positive: {data.positivePercentage}%</p>
         <p>Neutral: {data.neutralPercentage}%</p>
         <p>Negative: {data.negativePercentage}%</p>
         <p>Based on {data.analyzedReviewCount} published reviews</p>
       </div> : <div className="state-message" role="status">
+        {data?.status === 'UNAVAILABLE' && <StatusBadge status={data.status} />}
         <p>Sentiment analysis is temporarily unavailable.</p>
         <button type="button" onClick={onRetry}>Retry</button>
       </div>}

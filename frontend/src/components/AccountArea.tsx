@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import type { FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { ThemeToggle } from './ThemeProvider';
 
 export default function AccountArea() {
   const { currentUser, checking, sessionError, retry, login, logout } = useAuth();
@@ -9,6 +10,26 @@ export default function AccountArea() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const location = useLocation();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const area = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { setProfileOpen(false); }, [location.key, currentUser?.email]);
+  useEffect(() => {
+    if (!profileOpen) return;
+    function outside(event: PointerEvent) {
+      if (!area.current?.contains(event.target as Node)) setProfileOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === 'Escape') { setProfileOpen(false); trigger.current?.focus(); }
+    }
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [profileOpen]);
 
   useEffect(() => {
     if (location.state?.signIn) setShowForm(true);
@@ -50,9 +71,12 @@ export default function AccountArea() {
   );
 
   return (
-    <div className="account-area">
+    <div className="account-area" ref={area}>
       {currentUser ? (
         <>
+          <button className="account-button profile-trigger" ref={trigger} aria-expanded={profileOpen}
+            aria-controls="profile-panel" onClick={() => setProfileOpen(!profileOpen)}>My account</button>
+          {profileOpen && <div id="profile-panel" className="profile-panel">
           <div className="account-summary">
             <span>{currentUser.email}</span>
             <small>{currentUser.roles.join(' · ')}</small>
@@ -60,13 +84,22 @@ export default function AccountArea() {
               <small className="staff-notice">Your account is verified. <Link to="/account-setup">Complete your account</Link> to choose your roles.</small>
             )}
           </div>
+          <nav aria-label="Account navigation">
+            {currentUser.roles.includes('STUDENT') && <Link to="/student">Student Area</Link>}
+            {currentUser.roles.includes('TEACHER') && <><Link to="/teacher">Teacher Area</Link><Link to="/teacher/feedback">Teacher Feedback</Link><Link to="/teacher/analytics">Teacher Analytics</Link></>}
+            {currentUser.roles.includes('ADMIN') && <Link to="/admin">Admin Area</Link>}
+            {currentUser.emailVerified && <Link to="/account-setup">Account setup</Link>}
+          </nav>
+          <ThemeToggle />
           <button className="account-button" disabled={busy} onClick={handleSignOut}>
             {busy ? 'Signing out…' : 'Sign Out'}
           </button>
           {error && <p className="account-error" role="alert">{error}</p>}
+          </div>}
         </>
       ) : (
         <>
+          <ThemeToggle />
           <Link to="/register" onClick={() => setShowForm(false)}>Register</Link>
           <button className="account-button" aria-expanded={showForm} aria-controls="sign-in-form"
             disabled={busy} onClick={() => { setShowForm(!showForm); setError(''); }}>

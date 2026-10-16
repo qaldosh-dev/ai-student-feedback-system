@@ -1,28 +1,30 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { useEffect, useRef, useState } from 'react';
+import { Link, Outlet, useLocation } from 'react-router';
 import AccountArea from './AccountArea';
 
 export default function SiteLayout() {
-  const { currentUser, checking, sessionError } = useAuth();
   const { pathname } = useLocation();
   const catalogPath = pathname === '/' ? '' : '/';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   return (
     <>
       <a className="skip-link" href="#main">Skip to content</a>
       <header className="site-header">
-        <div className="container header-content">
+        <div className="container header-content" onKeyDown={event => {
+          if (event.key === 'Escape' && menuOpen) { setMenuOpen(false); menuButton.current?.focus(); }
+        }}>
           <Link className="brand" to="/" aria-label="Student Feedback home">
             <span className="brand-mark" aria-hidden="true">sdu</span>
             <span className="brand-text">Student Feedback<span>University project</span></span>
           </Link>
-          <nav aria-label="Main navigation">
+          <button className="account-button mobile-nav-toggle" ref={menuButton} aria-expanded={menuOpen}
+            aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>Menu</button>
+          <nav id="main-navigation" className={`main-navigation${menuOpen ? ' is-open' : ''}`} aria-label="Main navigation" onClick={() => setMenuOpen(false)}>
             <a href={`${catalogPath}#teachers`}>Teachers</a>
             <a href={`${catalogPath}#courses`}>Courses</a>
-            {!checking && !sessionError && currentUser?.emailVerified && <NavLink to="/account-setup">Account setup</NavLink>}
-            {!checking && !sessionError && currentUser?.roles.includes('STUDENT') && <NavLink to="/student">Student Area</NavLink>}
-            {!checking && !sessionError && currentUser?.roles.includes('TEACHER') && <NavLink to="/teacher">Teacher Area</NavLink>}
-            {!checking && !sessionError && currentUser?.roles.includes('ADMIN') && <NavLink to="/admin">Admin Area</NavLink>}
           </nav>
           <AccountArea />
         </div>

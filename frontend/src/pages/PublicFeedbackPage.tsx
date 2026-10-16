@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { getPublicFeedback, publicFeedbackUrl } from '../api/publicFeedback';
@@ -39,7 +41,7 @@ function Feedback({ teacherId, courseId, term, offeringId }: {
 export function PublicFeedbackContent({ data, loading, error, onRetry }: {
   data: PublicFeedback | null; loading: boolean; error: string; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading published feedback…</p>;
+  if (loading) return <LoadingState label="Loading published feedback…" />;
   if (error) return <div className="state-message error-message" role="alert"><p>{error}</p><button onClick={onRetry}>Retry</button></div>;
   if (!data) return <p className="state-message">Feedback selection not found.</p>;
   return <>
@@ -62,7 +64,7 @@ export function PublicFeedbackContent({ data, loading, error, onRetry }: {
     </nav>
     {data.courseOfferingId === null ? <p className="state-message">Choose a term and, if listed separately, a course offering to read its feedback.</p> : <>
       <p><strong>Academic Term:</strong> {data.academicTerm}</p>
-      {data.feedback.length === 0 ? <p className="state-message">No published feedback yet for this course and term.</p> :
+      {data.feedback.length === 0 ? <EmptyState title="No published feedback yet for this course and term." description="Try another available term or check again later." /> :
         <ul className="schedule-list">
           {data.feedback.map((feedback, index) => <li key={index} className="course-card">
             <p><strong>Rating:</strong> {feedback.rating} / 5</p>

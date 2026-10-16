@@ -1,3 +1,6 @@
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
@@ -43,17 +46,17 @@ function ScheduleDetails({ uploadId }: { uploadId: string }) {
   return <main id="main" className="container role-area student-page">
     <StudentBackLink to="/student/schedules">Back to Schedule Uploads</StudentBackLink>
     <h1>Extracted Schedule Information</h1>
-    {loading ? <p role="status">Loading extracted information…</p> : error ? <div className="state-message error-message" role="alert">
+    {loading ? <LoadingState label="Loading extracted information…" /> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
     </div> : data && <>
       <div className="state-message area-details">
         <p><strong>{data.upload.originalFilename}</strong> · Upload #{data.upload.id}</p>
         <p>Uploaded: {new Date(data.upload.uploadedAt).toLocaleString()}</p>
-        <p>PDF validation: <span className={`student-badge ${data.upload.status.toLowerCase()}`}>{data.upload.status.charAt(0) + data.upload.status.slice(1).toLowerCase()}</span></p>
+        <p>PDF validation: <StatusBadge status={data.upload.status} /></p>
         {data.upload.academicTerms.map(term => <p key={term}><strong>Academic Term:</strong> {term}</p>)}
         {data.upload.validationMessage && <p>{data.upload.validationMessage}</p>}
       </div>
-      {data.entries.length === 0 ? <p className="state-message">No extracted schedule information is available for this upload.</p> : <>
+      {data.entries.length === 0 ? <EmptyState title="No extracted schedule information is available for this upload." description="Check the validation result above before uploading another schedule." /> : <>
         <p>{summary.extracted} extracted entries · {summary.verified} verified · {summary.pending} pending
           {summary.notChecked > 0 && <> · {summary.notChecked} not checked</>}</p>
         <ExtractedEntryCards entries={data.entries} />
@@ -71,7 +74,7 @@ export function ExtractedEntryCards({ entries }: { entries: ExtractedSchedule['e
             <p><strong>Teacher:</strong> {entry.teacherName}</p>
             <p><strong>Group / Section:</strong> {entry.groupSection}</p>
             <p><strong>Academic Term:</strong> {entry.academicTerm}</p>
-            <p><strong>Verification:</strong> <span className={`student-badge ${entry.verificationStatus.toLowerCase()}`}>{verification.label}</span></p>
+            <p><strong>Verification:</strong> <StatusBadge status={entry.verificationStatus} /></p>
             {verification.reason && <p className="student-pending-reason"><strong>Reason:</strong> {verification.reason}</p>}
           </li>;
           })}

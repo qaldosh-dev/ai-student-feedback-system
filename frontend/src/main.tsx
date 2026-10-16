@@ -22,13 +22,20 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SiteLayout from './components/SiteLayout';
 import { AuthProvider } from './auth/AuthContext';
 import './styles.css';
+import { ThemeProvider, applyTheme, readTheme } from './components/ThemeProvider';
+import { ToastProvider } from './components/ToastProvider';
+import ErrorPage from './pages/ErrorPage';
+
+applyTheme(readTheme());
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
+      <ThemeProvider><ToastProvider>
       <AuthProvider>
         <Routes>
           <Route element={<SiteLayout />}>
+            <Route path="*" element={<ErrorPage />} />
             <Route path="/" element={<BrowsePage />} />
             <Route path="/teachers/:teacherId" element={<TeacherProfilePage />} />
             <Route path="/courses/:courseId" element={<CourseDetailsPage />} />
@@ -51,6 +58,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </Route>
         </Routes>
       </AuthProvider>
+      </ToastProvider></ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

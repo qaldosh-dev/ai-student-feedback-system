@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getCourseDetails } from '../api/catalog';
@@ -34,14 +36,14 @@ function Details({ courseId }: { courseId: string }) {
 export function CourseDetailsContent({ course, loading, error, onRetry }: {
   course: CourseDetails | null; loading: boolean; error: string; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading course details…</p>;
+  if (loading) return <LoadingState label="Loading course details…" />;
   if (error) return <div className="state-message error-message" role="alert"><p>{error}</p><button type="button" onClick={onRetry}>Retry</button></div>;
   if (!course) return <p className="state-message">Course not found.</p>;
   return <>
     <h2>{course.courseCode} — {course.courseName}</h2>
     <section className="catalog-section" aria-labelledby="course-teachers-title">
       <h2 id="course-teachers-title">Teachers teaching this course</h2>
-      {course.teacherOfferings.length === 0 ? <p className="state-message">No teachers are currently listed for this course.</p> :
+      {course.teacherOfferings.length === 0 ? <EmptyState title="No teachers are currently listed for this course." description="Check the public catalog again later." /> :
         <ul className="schedule-list">
           {course.teacherOfferings.map(teacher => <li key={JSON.stringify([teacher.teacherId, teacher.academicTerm])} className="course-card schedule-card">
             <h3>{teacher.teacherName}</h3>

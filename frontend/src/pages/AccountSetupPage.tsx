@@ -1,3 +1,4 @@
+import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { AccountSessionExpired, claimTeacher, selectStudentRole } from '../api/auth';
@@ -65,7 +66,7 @@ export default function AccountSetupPage() {
         <input id="claim-teacher-search" type="search" value={query} disabled={busy}
           placeholder="Search teacher by name..." onChange={event => { setQuery(event.target.value); setSelected(null); }} />
       </div>
-      {loading ? <p role="status">Loading teachers…</p> : searchError ? <p role="alert">{searchError}</p>
+      {loading ? <LoadingState label="Loading teachers…" /> : searchError ? <p role="alert">{searchError}</p>
         : !query.trim() ? <p>Enter your name to search the existing catalog.</p>
         : teachers.length === 0 ? <p>No teachers found.</p>
         : <ul className="teacher-choices">{teachers.map(teacher => <li key={teacher.id}>

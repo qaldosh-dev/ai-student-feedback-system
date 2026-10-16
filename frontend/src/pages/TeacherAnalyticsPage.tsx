@@ -1,3 +1,5 @@
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
@@ -69,12 +71,12 @@ export function TeacherAnalyticsContent({ data, loading, error, onSelection, onR
   data: TeacherAnalyticsScope | null; loading: boolean; error: string;
   onSelection: (query: string) => void; onRetry: () => void;
 }) {
-  if (loading) return <p role="status">Loading teacher analytics…</p>;
+  if (loading) return <LoadingState label="Loading teacher analytics…" />;
   if (error) return <div className="state-message error-message" role="alert">
     <p>{error}</p><button type="button" onClick={onRetry}>Retry</button>
     <button type="button" onClick={() => onSelection('')}>Reset selection</button>
   </div>;
-  if (!data || data.courses.length === 0) return <p className="state-message">No courses available for analytics.</p>;
+  if (!data || data.courses.length === 0) return <EmptyState title="No courses available for analytics." description="Analytics will appear when eligible courses and feedback are available." />;
   const course = data.courses.find(option => option.courseId === data.selectedCourseId);
   return <>
     <div className="section-search">

@@ -30,19 +30,23 @@ export default function ScheduleUploadList({ refreshKey }: { refreshKey: number 
     <h2 id="my-schedules-title">My Schedule Uploads</h2>
     {loading ? <p role="status">Loading your uploads…</p> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry</button>
-    </div> : uploads.length === 0 ? <p className="state-message">You have not uploaded a schedule yet.</p> :
-      <ul className="schedule-list">
+    </div> : uploads.length === 0 ? <p className="state-message">You have not uploaded a schedule yet.</p> : <ScheduleUploadCards uploads={uploads} />}
+  </section>;
+}
+
+export function ScheduleUploadCards({ uploads }: { uploads: ScheduleUploadView[] }) {
+  return <ul className="schedule-list">
         {uploads.map(upload => <li key={upload.id} className="course-card schedule-card">
           <h3>{upload.originalFilename}</h3>
-          <p>Upload #{upload.id} · {new Date(upload.uploadedAt).toLocaleString()}</p>
-          <p>Status: {upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</p>
+          <p className="student-meta">Upload #{upload.id} · Uploaded: {new Date(upload.uploadedAt).toLocaleString()}</p>
+          <p>Validation: <span className={`student-badge ${upload.status.toLowerCase()}`}>{upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</span></p>
           {upload.academicTerms.map(term => <p key={term}>Academic Term: {term}</p>)}
+          {upload.academicTerms.length === 0 && <p className="student-meta">Academic Term: Not available</p>}
           {upload.validationMessage && <p>{upload.validationMessage}</p>}
+          <p>{upload.extractedCount} extracted entries</p>
           {upload.status === 'VALID' && <>
-            <p>{upload.extractedCount} extracted entries</p>
-            <Link to={`/student/schedules/${upload.id}`}>View extracted information</Link>
+            <Link className="student-link-button" to={`/student/schedules/${upload.id}`}>View extracted information</Link>
           </>}
         </li>)}
-      </ul>}
-  </section>;
+      </ul>;
 }

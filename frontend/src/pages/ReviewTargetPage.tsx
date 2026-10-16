@@ -5,6 +5,10 @@ import { listReviewEligibilities } from '../api/scheduleUploads';
 import type { ReviewEligibility } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
 import ReviewDraftEditor from '../components/ReviewDraftEditor';
+import StudentBackLink from '../components/StudentBackLink';
+import { getOwnReviews } from '../api/reviews';
+import type { OwnReview } from '../api/reviews';
+import { existingReview, reviewAction } from './reviewAction';
 import { reviewTargetQuery } from './reviewTargetQuery';
 export { reviewTargetQuery } from './reviewTargetQuery';
 
@@ -44,31 +48,38 @@ export default function ReviewTargetPage() {
 function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
   const { expireSession } = useAuth();
   const [rows, setRows] = useState<ReviewEligibility[]>([]);
+  const [reviews, setReviews] = useState<OwnReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(''); setRows([]);
-    listReviewEligibilities(controller.signal)
-      .then(result => { if (!controller.signal.aborted) setRows(result); })
+    setLoading(true); setError(''); setRows([]); setReviews([]);
+    Promise.all([listReviewEligibilities(controller.signal), getOwnReviews(controller.signal)])
+      .then(([targets, history]) => {
+        if (controller.signal.aborted) return;
+        // Fail closed if an older backend lacks the stable target identity.
+        if (history.some(review => !Number.isSafeInteger(review.courseOfferingId) || review.courseOfferingId <= 0))
+          throw new Error('Review identity unavailable.');
+        setRows(targets); setReviews(history);
+      })
       .catch(failure => {
         if (controller.signal.aborted) return;
-        if (failure instanceof AccountSessionExpired) expireSession();
+        if (failure instanceof AccountSessionExpired) { setError('Sign in again to load your review targets.'); expireSession(); }
         else setError('Could not load courses available for review. Please try again.');
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [attempt, expireSession]);
 
-  return <main id="main" className="container role-area">
-    <Link to="/student">Back to Student Area</Link>
+  return <main id="main" className="container role-area student-page">
+    <StudentBackLink />
     <h1>Review a Course</h1>
     <p>Choose the course, teacher and academic term for your feedback.</p>
     {loading ? <p role="status">Loading available courses…</p> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
-    </div> : <ReviewTargetSelection rows={rows} search={search} onSelect={onSelect} onSubmitted={onSubmitted} />}
+    </div> : <ReviewTargetSelection rows={rows} reviews={reviews} search={search} onSelect={onSelect} onSubmitted={onSubmitted} />}
   </main>;
 }
 
@@ -87,8 +98,9 @@ function TargetDetails({ target }: { target: ReviewEligibility }) {
   </>;
 }
 
-export function ReviewTargetSelection({ rows, search, onSelect, onSubmitted }: SelectionProps & { rows: ReviewEligibility[] }) {
+export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmitted }: SelectionProps & { rows: ReviewEligibility[]; reviews: OwnReview[] }) {
   const selection = resolveReviewTarget(rows, search);
+  const selectedReview = selection.kind === 'selected' ? existingReview(reviews, selection.target) : undefined;
   // US20 supplies unique targets in deterministic order; no catalog matching/grouping happens here.
   return <>
     {selection.kind === 'unavailable' && <p className="state-message error-message" role="alert">
@@ -97,7 +109,8 @@ export function ReviewTargetSelection({ rows, search, onSelect, onSubmitted }: S
     {selection.kind === 'selected' && <section className="state-message area-details" aria-labelledby="selected-target-title">
       <h2 id="selected-target-title">Selected review target</h2>
       <TargetDetails target={selection.target} />
-      <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} />
+      {selectedReview ? <ExistingReviewAction review={selectedReview} />
+        : <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} />}
     </section>}
     {rows.length === 0 ? <div className="state-message">
       <p>No verified courses are currently available for review.</p>
@@ -107,14 +120,26 @@ export function ReviewTargetSelection({ rows, search, onSelect, onSubmitted }: S
       <ul className="schedule-list">
         {rows.map(target => {
           const selected = selection.kind === 'selected' && selection.target === target;
+          const review = existingReview(reviews, target);
           return <li key={reviewTargetQuery(target).toString()} className={`course-card schedule-card${selected ? ' selected-review-target' : ''}`}>
             <TargetDetails target={target} />
-            <button type="button" className="account-button" aria-pressed={selected}
-              aria-label={`${selected ? 'Selected' : 'Select'} ${target.courseCode}, ${target.teacherName}, ${target.academicTerm}`}
-              onClick={() => { if (!selected) onSelect(target); }}>{selected ? 'Selected' : 'Select'}</button>
+            {review ? <ExistingReviewAction review={review} /> : <>
+              <p><span className="student-badge">Not reviewed</span></p>
+              <button type="button" className="account-button" aria-pressed={selected}
+                aria-label={`Review ${target.courseCode}, ${target.teacherName}, ${target.academicTerm}`}
+                onClick={() => { if (!selected) onSelect(target); }}>Review</button>
+            </>}
           </li>;
         })}
       </ul>
     </>}
   </>;
+}
+
+function ExistingReviewAction({ review }: { review: OwnReview }) {
+  const action = reviewAction(review);
+  return <div className="student-card-actions">
+    <span className={`student-badge ${review.status.toLowerCase()}`}>{action.status}</span>
+    <Link className="student-link-button" to={action.href}>{action.label}</Link>
+  </div>;
 }

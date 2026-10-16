@@ -95,8 +95,9 @@ test('My Reviews uses one status link, preserving edit and correction actions', 
   const reviews = ['SUBMITTED','PUBLISHED','NEEDS_CORRECTION'].map((status,index) => ({ ...data, reviewId: 7 + index, status, text: 'Feedback' }));
   const html = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(MyReviewsContent,
     { reviews, loading: false, error: '', editing: null, onEdit() {}, onCancel() {}, onRefresh() {}, onSessionExpired() {} })));
-  assert.match(html, /href="\/student\/reviews\/7\/status"[^>]*>Retry Moderation \/ View Status/);
-  assert.equal((html.match(/Retry Moderation/g) ?? []).length, 1); assert.match(html, /Edit Review/); assert.match(html, /Fix Feedback/);
+  assert.match(html, /href="\/student\/reviews\/7\/status"[^>]*>View Status/);
+  assert.equal((html.match(/href="\/student\/reviews\/7\/status"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Retry Moderation/); assert.match(html, /Edit Review/); assert.match(html, /Fix Feedback/);
 });
 test('pending guard, authoritative response, safe network error and timer cleanup are wired', async () => {
   const source = await readFile(new URL('../src/components/ReviewModerationRetry.tsx', import.meta.url), 'utf8');

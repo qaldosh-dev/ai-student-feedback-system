@@ -43,6 +43,28 @@ nav a:hover { color: #245bc1; text-decoration: underline; text-underline-offset:
 nav a[aria-current="page"] { color: #245bc1; text-decoration: underline; text-underline-offset: 5px; }
 .role-area { padding-block: 48px; display: grid; gap: 24px; min-height: 280px; align-content: start; }
 .role-area > button { justify-self: start; }
+.student-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.student-actions .student-action-card { display: grid; gap: 10px; padding: 24px; border: 1px solid #cad7e9; border-radius: 12px; background: #f7faff; text-decoration: none; overflow-wrap: anywhere; }
+.student-actions .student-action-card:hover { background: #edf4ff; border-color: #3977d6; text-decoration: none; }
+.student-action-card h2 { font-size: 20px; }
+.student-action-card p { color: #53657e; font-weight: 400; }
+.student-action-card > span { color: #234e89; }
+.student-back-link, .student-link-button { display: inline-flex; align-items: center; gap: 6px; justify-self: start; width: fit-content; max-width: 100%; min-height: 44px; padding: 10px 16px; border: 1px solid #cad7e9; border-radius: 8px; background: #fff; color: #234e89; text-decoration: none; font-weight: 600; }
+.student-back-link { font-size: 14px; }
+.student-back-link:hover, .student-link-button:hover { background: #eef4fc; }
+.student-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.student-badge { display: inline-block; width: fit-content; padding: 3px 10px; border-radius: 16px; background: #edf1f7; color: #42546b; font-size: 14px; font-weight: 600; }
+.student-badge.valid, .student-badge.verified, .student-badge.published { color: #20603d; background: #e8f5ec; }
+.student-badge.pending, .student-badge.needs_correction { color: #75500c; background: #fff4d9; }
+.student-badge.invalid { color: #8a3535; background: #fbeeee; }
+.student-meta { color: #53657e; font-size: 14px; }
+.student-pending-reason { padding: 12px 14px; border-left: 3px solid #dbb65d; background: #fffaf0; border-radius: 4px; }
+.student-page .schedule-card > button { justify-self: start; min-height: 44px; }
+@media (max-width: 640px) {
+  .student-actions { grid-template-columns: minmax(0, 1fr); }
+  .student-page.container { width: calc(100% - 32px); }
+  .student-card-actions { align-items: flex-start; }
+}
 .area-details { display: grid; gap: 12px; overflow-wrap: anywhere; }
 .registration-form { width: min(100%, 480px); padding: 24px; border: 1px solid #dfe7f0; border-radius: 10px; background: #fcfdff; overflow-wrap: anywhere; }
 .registration-form label { display: block; margin: 18px 0 6px; font-weight: 600; font-size: 14px; }

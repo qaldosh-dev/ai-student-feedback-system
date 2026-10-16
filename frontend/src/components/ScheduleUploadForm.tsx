@@ -53,7 +53,7 @@ export default function ScheduleUploadForm({ onUploaded }: { onUploaded?: () => 
       <p>{upload.originalFilename}</p>
       <p>Uploaded: {new Date(upload.uploadedAt).toLocaleString()}</p>
       <p>Status: {upload.status.charAt(0) + upload.status.slice(1).toLowerCase()}</p>
-      {upload.status === 'VALID' && <Link to={`/student/schedules/${upload.id}`}>View extracted information</Link>}
+      {upload.status === 'VALID' && <Link className="student-link-button" to={`/student/schedules/${upload.id}`}>View extracted information</Link>}
       {upload.validationMessage && <p>{upload.validationMessage}</p>}
     </div>}
   </section>;

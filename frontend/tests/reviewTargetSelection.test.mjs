@@ -11,7 +11,7 @@ const first = { courseOfferingId: 1, courseId: 10, teacherId: 20, courseCode: 'A
 const second = { ...first, courseOfferingId: 2, teacherId: 21, teacherName: 'Morgan Person', groupSections: ['04-N'] };
 const rows = [first, second];
 const query = target => reviewTargetQuery(target).toString();
-const render = (data = rows, search = '') => renderToStaticMarkup(createElement(ReviewTargetSelection, { rows: data, search, onSelect() {}, onRate() {} }));
+const render = (data = rows, search = '') => renderToStaticMarkup(createElement(ReviewTargetSelection, { reviews: [], rows: data, search, onSelect() {}, onRate() {} }));
 const summary = html => html.match(/<section[\s\S]*?<\/section>/)?.[0] ?? '';
 
 test('eligible targets render once each in server order', () => {
@@ -151,13 +151,13 @@ test('invalid optional rating cannot grant eligibility to unavailable/pending/ot
 });
 test('switching targets omits legacy URL rating; per-target storage restores drafts separately', () => {
   let search = ratedQuery(first, 4);
-  const view = ReviewTargetSelection({ rows, search, onRate() {}, onSelect(target) { search = query(target); } });
-  findElement(view, e => e.type === 'button' && e.props['aria-label']?.startsWith('Select ABC 100, Morgan')).props.onClick();
+  const view = ReviewTargetSelection({ reviews: [], rows, search, onRate() {}, onSelect(target) { search = query(target); } });
+  findElement(view, e => e.type === 'button' && e.props['aria-label']?.startsWith('Review ABC 100, Morgan')).props.onClick();
   assert.equal(resolveReviewTarget(rows, search).target, second); assert.equal(readReviewRating(search), null);
 });
 test('clicking the already-selected target does not erase its rating', () => {
   let calls = 0;
-  const view = ReviewTargetSelection({ rows, search: ratedQuery(first, 4), onRate() {}, onSelect() { calls++; } });
+  const view = ReviewTargetSelection({ reviews: [], rows, search: ratedQuery(first, 4), onRate() {}, onSelect() { calls++; } });
   findElement(view, e => e.type === 'button' && e.props['aria-pressed']).props.onClick();
   assert.equal(calls, 0);
 });

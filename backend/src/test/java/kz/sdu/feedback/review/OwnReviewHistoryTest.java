@@ -85,8 +85,9 @@ class OwnReviewHistoryTest {
         var body=history(OWNER); var rows=json.readTree(body);
         assertEquals(3,rows.size()); assertEquals(flagged,rows.get(0).get("reviewId").longValue());
         assertEquals(submitted,rows.get(1).get("reviewId").longValue()); assertEquals(published,rows.get(2).get("reviewId").longValue());
-        assertEquals(Set.of("reviewId","courseCode","courseName","teacherName","academicTerm","rating","text","status","submittedAt","moderatedAt","moderationReasons"),rows.get(0).propertyNames());
+        assertEquals(Set.of("reviewId","courseOfferingId","courseCode","courseName","teacherName","academicTerm","rating","text","status","submittedAt","moderatedAt","moderationReasons"),rows.get(0).propertyNames());
         var row=rows.get(0);
+        assertEquals(reviews.findById(flagged).orElseThrow().getCourseOffering().getId(), row.get("courseOfferingId").longValue());
         assertEquals("ABC 100",row.get("courseCode").stringValue()); assertEquals("Alpha Subject",row.get("courseName").stringValue());
         assertEquals("Alex Person",row.get("teacherName").stringValue()); assertEquals("2026-2027 2 term",row.get("academicTerm").stringValue());
         assertEquals(4,row.get("rating").intValue()); assertEquals("Flagged content",row.get("text").stringValue());

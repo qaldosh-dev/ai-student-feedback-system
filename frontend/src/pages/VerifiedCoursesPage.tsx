@@ -6,6 +6,7 @@ import type { VerifiedCourse } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
 import { groupVerifiedCourses } from './verifiedCourseGroups';
 import { reviewTargetQuery } from './reviewTargetQuery';
+import StudentBackLink from '../components/StudentBackLink';
 
 export default function VerifiedCoursesPage() {
   const { currentUser } = useAuth();
@@ -33,8 +34,8 @@ function VerifiedCourses() {
     return () => controller.abort();
   }, [attempt, expireSession]);
 
-  return <main id="main" className="container role-area">
-    <Link to="/student">Back to Student Area</Link>
+  return <main id="main" className="container role-area student-page">
+    <StudentBackLink />
     <h1>Verified Courses</h1>
     <p>These schedule entries match a course and teacher relationship in the catalog.
       Academic term and group come from your schedule; the catalog does not independently confirm enrollment.</p>

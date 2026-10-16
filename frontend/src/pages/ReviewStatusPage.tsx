@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
 import { getReviewStatus } from '../api/reviews';
 import type { ReviewStatusResponse } from '../api/reviews';
@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import ReviewCorrectionEditor from '../components/ReviewCorrectionEditor';
 import ReviewModerationStatus from '../components/ReviewModerationStatus';
 import ReviewModerationRetry from '../components/ReviewModerationRetry';
+import StudentBackLink from '../components/StudentBackLink';
 
 export default function ReviewStatusPage() {
   const { reviewId = '' } = useParams();
@@ -39,9 +40,9 @@ function ReviewStatus({ reviewId }: { reviewId: string }) {
     return () => controller.abort();
   }, [reviewId, attempt, expireSession]);
 
-  return <main id="main" className="container role-area">
-    <Link to="/student">Back to Student Area</Link>
-    <p><Link to="/student/reviews">My Reviews</Link></p>
+  return <main id="main" className="container role-area student-page">
+    <div className="student-card-actions"><StudentBackLink />
+      <StudentBackLink to="/student/reviews">Back to My Reviews</StudentBackLink></div>
     <h1>Review Submission Status</h1>
     <ReviewStatusContent data={data} loading={loading} error={error} onSessionExpired={expireSession}
       onUpdated={setData}

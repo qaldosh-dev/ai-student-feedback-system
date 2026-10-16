@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import AccountSetupPage from './pages/AccountSetupPage';
 import ScheduleDetailsPage from './pages/ScheduleDetailsPage';
+import ScheduleUploadsPage from './pages/ScheduleUploadsPage';
 import VerifiedCoursesPage from './pages/VerifiedCoursesPage';
 import ReviewTargetPage from './pages/ReviewTargetPage';
 import ReviewStatusPage from './pages/ReviewStatusPage';
@@ -38,6 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/account-setup" element={<ProtectedRoute><AccountSetupPage /></ProtectedRoute>} />
             <Route path="/student" element={<ProtectedRoute requiredRole="STUDENT"><RoleAreaPage key="student" role="STUDENT" /></ProtectedRoute>} />
             <Route path="/student/schedules/:uploadId" element={<ProtectedRoute requiredRole="STUDENT"><ScheduleDetailsPage /></ProtectedRoute>} />
+            <Route path="/student/schedules" element={<ProtectedRoute requiredRole="STUDENT"><ScheduleUploadsPage /></ProtectedRoute>} />
             <Route path="/student/verified-courses" element={<ProtectedRoute requiredRole="STUDENT"><VerifiedCoursesPage /></ProtectedRoute>} />
             <Route path="/student/reviews/new" element={<ProtectedRoute requiredRole="STUDENT"><ReviewTargetPage /></ProtectedRoute>} />
             <Route path="/student/reviews" element={<ProtectedRoute requiredRole="STUDENT"><MyReviewsPage /></ProtectedRoute>} />

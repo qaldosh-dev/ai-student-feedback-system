@@ -17,7 +17,7 @@ function storage() {
   globalThis.sessionStorage = { get length() { return data.size; }, key: i => [...data.keys()][i], getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) };
   return data;
 }
-const render = (target = first, rows = [first, second], rating) => renderToStaticMarkup(createElement(ReviewTargetSelection, { rows, search: reviewTargetQuery(target, rating).toString(), onSelect() {} }));
+const render = (target = first, rows = [first, second], rating) => renderToStaticMarkup(createElement(ReviewTargetSelection, { reviews: [], rows, search: reviewTargetQuery(target, rating).toString(), onSelect() {} }));
 function find(element, type) {
   if (!element || typeof element !== 'object') return undefined;
   if (Array.isArray(element)) return element.map(child => find(child, type)).find(Boolean);

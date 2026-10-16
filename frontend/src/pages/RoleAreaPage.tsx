@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import type { CurrentUser, UserRole } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
-import ScheduleUploadForm from '../components/ScheduleUploadForm';
-import ScheduleUploadList from '../components/ScheduleUploadList';
+import StudentDashboard from '../components/StudentDashboard';
 
 interface AreaHome {
   area: UserRole;
@@ -18,7 +17,6 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const [uploadsVersion, setUploadsVersion] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,16 +60,10 @@ export default function RoleAreaPage({ role }: { role: UserRole }) {
           {role === 'TEACHER' && (home.linkedTeacher
             ? <p><strong>Linked teacher:</strong> {home.linkedTeacher.name} (ID {home.linkedTeacher.id})</p>
             : <p>No teacher profile is linked to this account.</p>)}
-          <p>This area currently confirms your account access.</p>
+          {role !== 'STUDENT' && <p>This area currently confirms your account access.</p>}
         </div>
       )}
-      {role === 'STUDENT' && home && !loading && !error && <>
-        <p><Link to="/student/verified-courses">View Verified Courses</Link></p>
-        <p><Link to="/student/reviews/new">Review a Course</Link></p>
-        <p><Link to="/student/reviews">My Reviews</Link></p>
-        <ScheduleUploadForm key={`form-${currentUser?.id}`} onUploaded={() => setUploadsVersion(value => value + 1)} />
-        <ScheduleUploadList key={`list-${currentUser?.id}`} refreshKey={uploadsVersion} />
-      </>}
+      {role === 'STUDENT' && home && !loading && !error && <StudentDashboard />}
       {role === 'TEACHER' && home && !loading && !error && <p><Link to="/teacher/feedback">Course Feedback</Link></p>}
       {role === 'TEACHER' && home && !loading && !error && <MyProfileLink linkedTeacher={home.linkedTeacher} />}
       {role === 'TEACHER' && home && !loading && !error && <p><Link to="/teacher/analytics">Teacher Analytics</Link></p>}

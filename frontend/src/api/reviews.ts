@@ -12,7 +12,7 @@ export interface ReviewStatusResponse {
   retryAfterSeconds: number;
 }
 
-export type OwnReview = Omit<ReviewStatusResponse, 'courseOfferingId' | 'text' | 'retryModerationAvailable' | 'retryAfterSeconds'> & { text: string };
+export type OwnReview = Omit<ReviewStatusResponse, 'text' | 'retryModerationAvailable' | 'retryAfterSeconds'> & { text: string };
 
 export class ModerationRetryCooldown extends Error {
   constructor(public retryAfterSeconds: number) { super('Moderation was recently attempted. Please try again later.'); }

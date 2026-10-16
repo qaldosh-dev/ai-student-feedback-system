@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
 import { getOwnReviews } from '../api/reviews';
 import type { OwnReview } from '../api/reviews';
 import { useAuth } from '../auth/AuthContext';
 import ReviewModerationStatus from '../components/ReviewModerationStatus';
 import PublishedReviewEditor from '../components/PublishedReviewEditor';
+import StudentBackLink from '../components/StudentBackLink';
+import { requestedReviewEdit, reviewAction } from './reviewAction';
 
 export default function MyReviewsPage() {
   const { currentUser } = useAuth();
-  return <MyReviews key={currentUser?.id} />;
+  const [query] = useSearchParams();
+  return <MyReviews key={`${currentUser?.id}:${query.toString()}`} search={query.toString()} />;
 }
 
-function MyReviews() {
+function MyReviews({ search }: { search: string }) {
   const { expireSession } = useAuth();
   const [reviews, setReviews] = useState<OwnReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +26,12 @@ function MyReviews() {
     const controller = new AbortController();
     setLoading(true); setError('');
     getOwnReviews(controller.signal)
-      .then(result => { if (!controller.signal.aborted) setReviews(result); })
+      .then(result => {
+        if (!controller.signal.aborted) {
+          setReviews(result);
+          if (attempt === 0) setEditing(requestedReviewEdit(result, search));
+        }
+      })
       .catch(failure => {
         if (controller.signal.aborted) return;
         if (failure instanceof AccountSessionExpired) expireSession();
@@ -31,11 +39,11 @@ function MyReviews() {
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [attempt, expireSession]);
+  }, [attempt, expireSession, search]);
 
   function refresh() { setEditing(null); setLoading(true); setAttempt(value => value + 1); }
-  return <main id="main" className="container role-area">
-    <Link to="/student">Back to Student Area</Link>
+  return <main id="main" className="container role-area student-page">
+    <StudentBackLink />
     <h1>My Reviews</h1>
     <MyReviewsContent reviews={reviews} loading={loading} error={error} editing={editing}
       onEdit={setEditing} onCancel={() => setEditing(null)} onRefresh={refresh} onSessionExpired={expireSession} />
@@ -63,11 +71,9 @@ export function MyReviewsContent({ reviews, loading, error, editing, onEdit, onC
         {!loading && !error && review.status === 'PUBLISHED' && (editing === review.reviewId
           ? <PublishedReviewEditor key={review.reviewId} reviewId={review.reviewId} initialRating={review.rating} initialText={review.text}
               onSaved={onRefresh} onCancel={onCancel} onSessionExpired={onSessionExpired} />
-          : <button type="button" className="account-button" disabled={editing !== null} onClick={() => onEdit(review.reviewId)}>Edit Review</button>)}
-        {!loading && !error && review.status === 'NEEDS_CORRECTION' && <Link to={`/student/reviews/${review.reviewId}/status`}>Fix Feedback</Link>}
-        {review.status !== 'NEEDS_CORRECTION' && <Link to={`/student/reviews/${review.reviewId}/status`}>
-          {review.status === 'SUBMITTED' ? 'Retry Moderation / View Status' : 'View Status'}
-        </Link>}
+          : <button type="button" className="account-button" disabled={editing !== null} onClick={() => onEdit(review.reviewId)}>{reviewAction(review).label}</button>)}
+        {!loading && !error && review.status !== 'PUBLISHED' && <Link className="student-link-button" to={reviewAction(review).href}>{reviewAction(review).label}</Link>}
+        {review.status === 'PUBLISHED' && <Link className="student-link-button" to={`/student/reviews/${review.reviewId}/status`}>View Status</Link>}
       </li>)}
     </ul>
   </>;

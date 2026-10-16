@@ -85,7 +85,7 @@ for (const overrides of [{reviewId:0},{reviewId:null},{status:null},{status:'PUB
     assert.equal(loadDraft(other,null).text,'Other target');
   });
 test('tampered target cannot expose Submit despite stored draft',()=>{
-  setup(); const html=renderToStaticMarkup(createElement(ReviewTargetSelection,{rows:[other],search:reviewTargetQuery(target).toString(),onSelect(){}}));
+  setup(); const html=renderToStaticMarkup(createElement(ReviewTargetSelection,{reviews:[],rows:[other],search:reviewTargetQuery(target).toString(),onSelect(){}}));
   assert.match(html,/not available for review/); assert.doesNotMatch(html,/Submit Review|textarea/);
 });
 test('success shows confirmation only, without author identity or an editable/submittable draft',()=>{

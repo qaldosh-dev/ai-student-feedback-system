@@ -2197,3 +2197,62 @@ Automated frontend checks cover filter changes, stale responses and refresh;
 the manual browser scenarios above remain unperformed. Temporary test servers
 were closed; ports 8080 and 5173 were not listening at the final check. The user's
 IntelliJ process was not controlled. No staging, commit or next story was started.
+
+## Student UX refinement — before Sprint 7
+
+This is a navigation/usability refinement, not US40 and not a Sprint 7 story.
+Student Area keeps account information above four keyboard-accessible navigation
+cards: Upload Schedule, Verified Courses, Review a Course and My Reviews.
+`/student/schedules` is the new STUDENT-protected upload page, reusing the existing
+upload form and previous uploads list. Schedule details link back to this page.
+Student pages share a secondary back-link style; upload/verification badges and
+pending-reason callouts retain the current status meanings and information.
+
+Review a Course loads both eligibility and the authenticated Student's review
+history before showing a target action or editor. The only backend production
+change adds `courseOfferingId` to the existing own-history DTO. This stable ID is
+already loaded by the history query; no extra query, public/Teacher field, endpoint,
+entity, schema change or business-rule change is needed. Pairing uses CourseOffering
+ID + exact academicTerm within the signed-in Student's own history, never names,
+course codes or groupSection. A failed history request (or an older backend response
+missing the ID) blocks creation rather than assuming the target has no review.
+Restart the backend normally to use the new DTO before trying the updated UI.
+
+The shared action mapping is:
+- No review: Review, using the existing create editor.
+- PUBLISHED: Edit Review, opening `/student/reviews?edit=<reviewId>` and the existing
+  US28 editor with current rating/text fetched from the server.
+- NEEDS_CORRECTION: Fix Feedback, opening the existing US27 status/correction flow.
+- SUBMITTED: View Status, keeping the existing moderation retry flow and cooldown.
+
+Direct create URLs also load history and show the existing-review action instead
+of a blank editor. Account/target changes abort stale requests; refresh rechecks
+both server sources. My Reviews shares the labels and reloads current owned data
+before opening a requested published editor. Existing backend eligibility and
+US28 uniqueness remain authoritative if another tab creates/changes a review
+while a page is open; this refinement does not introduce polling or new writes.
+Schedule processing, catalog, moderation, anonymity, Teacher Analytics and
+AccountSetupService are unchanged.
+
+Manual smoke plan (no extra real reviews needed merely for testing):
+1. Sign in as Student; check four dashboard cards and open Upload Schedule.
+2. Open an existing upload; check Valid/Invalid and Verified/Pending/Not checked,
+   a readable pending reason when present, and both back-navigation destinations.
+3. Open Review a Course. A target without a review offers Review and the normal
+   rating/text draft. Do not submit solely to demonstrate the navigation.
+4. An existing Published target offers Edit Review and preloads its current content;
+   cancel without saving. Needs correction opens Fix Feedback; Submitted opens
+   View Status with the unchanged retry controls when allowed.
+5. Open a direct create URL for each existing-review state and refresh: no blank
+   creation form should appear. Switch targets and confirm exact terms stay separate.
+6. Check keyboard focus and stacked dashboard cards in a narrow viewport.
+
+Verification: 137 focused backend tests passed. After updating the affected frontend
+fixtures/labels, all 414 frontend tests passed, including 16 new Student UX tests
+for actions, direct routes, prefilled editing, failed history, stale responses and
+refresh. Frontend production build passed. The single final Maven package run
+passed all 813 backend tests, with no failures/errors/skips. Tests use isolated
+fixtures/fake providers; no real feedback was submitted or edited, no live Gemini
+or SMTP call was made, and the real catalog was not modified. Manual browser smoke
+was not performed; use the steps above after starting the current backend/frontend.
+Temporary test servers were closed. No staging/commit or US37–US40 work.

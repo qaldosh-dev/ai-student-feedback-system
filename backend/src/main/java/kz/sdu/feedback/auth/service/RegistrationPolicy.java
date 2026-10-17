@@ -23,10 +23,10 @@ public class RegistrationPolicy {
     }
 
     public void validatePassword(String password) {
-        if (password == null || password.codePointCount(0, password.length()) < 8
+        if (password == null || password.isBlank() || password.codePointCount(0, password.length()) < 8
                 || password.getBytes(StandardCharsets.UTF_8).length > 72 || password.indexOf('\0') >= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Password must contain at least 8 characters and at most 72 UTF-8 bytes.");
+                    "Password must not be blank and must contain at least 8 characters and at most 72 UTF-8 bytes.");
         }
     }
 }

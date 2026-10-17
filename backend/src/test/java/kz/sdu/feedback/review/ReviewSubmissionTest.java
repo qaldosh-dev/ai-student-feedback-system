@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import java.util.*;
 import kz.sdu.feedback.FeedbackApplication;
@@ -55,6 +56,7 @@ class ReviewSubmissionTest {
     @Autowired CourseOfferingRepository offerings;
     @MockitoSpyBean ReviewRepository reviews;
     @Autowired ReviewService service;
+    @Autowired org.springframework.security.crypto.password.PasswordEncoder encoder;
     @Autowired jakarta.persistence.EntityManager entityManager;
     User author;
     CourseOffering offering;
@@ -110,6 +112,40 @@ class ReviewSubmissionTest {
         var failure = assertThrows(org.springframework.web.server.ResponseStatusException.class,
                 () -> service.submit(EMAIL, new SubmitReviewRequest(offering.getId(), TERM, 4, "Clear explanations.")));
         assertEquals(403, failure.getStatusCode().value()); assertEquals(0, reviews.count());
+    }
+
+    @Test void editorTokenCannotSubmitUnderAnotherAccountEvenIfBothAreEligible() throws Exception {
+        String password = UUID.randomUUID().toString();
+        author.changePasswordHash(encoder.encode(password)); users.saveAndFlush(author);
+        var other = users.findByEmail("other@feedback.test").orElseThrow();
+        other.changePasswordHash(encoder.encode(password)); users.saveAndFlush(other);
+        var upload = new ScheduleUpload(other, "other.pdf", UUID.randomUUID()+".pdf");
+        upload.finishValidation(null); uploads.saveAndFlush(upload);
+        var source = entries.saveAndFlush(new ExtractedScheduleEntry(upload, "ABC 100", "Alpha Subject", "Alex Person", "01-N", TERM));
+        verified.saveAndFlush(new VerifiedCourse(source, offering));
+        var tokenResponse = mvc.perform(get("/api/auth/csrf")).andReturn();
+        var session = (org.springframework.mock.web.MockHttpSession) tokenResponse.getRequest().getSession(false);
+        String token = json.readTree(tokenResponse.getResponse().getContentAsString()).get("token").asString();
+        mvc.perform(post("/api/auth/login").session(session).header("X-CSRF-TOKEN", token)
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", EMAIL, "password", password))))
+                .andExpect(status().isOk());
+        var me = mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn();
+        String editorToken = me.getResponse().getHeader("X-CSRF-TOKEN");
+        assertNotNull(editorToken);
+        mvc.perform(post("/api/auth/login").session(session).header("X-CSRF-TOKEN", editorToken)
+                .contentType("application/json").content(json.writeValueAsString(Map.of("email", other.getEmail(), "password", password))))
+                .andExpect(status().isOk());
+        mvc.perform(post(API).session(session).header("X-CSRF-TOKEN", editorToken)
+                .contentType("application/json").content(json.writeValueAsString(body())))
+                .andExpect(status().isForbidden());
+        assertEquals(0, reviews.count());
+        String currentToken = mvc.perform(get("/api/auth/me").session(session)).andExpect(jsonPath("$.email").value(other.getEmail()))
+                .andReturn().getResponse().getHeader("X-CSRF-TOKEN");
+        mvc.perform(post(API).session(session).header("X-CSRF-TOKEN", currentToken)
+                .contentType("application/json").content(json.writeValueAsString(body())))
+                .andExpect(status().isCreated());
+        assertEquals(other.getId(), reviews.findAll().getFirst().getAuthor().getId());
     }
     @ParameterizedTest @ValueSource(ints={1,5}) void ratingBoundaries(int rating) throws Exception {
         var input = body(); input.put("rating", rating); send(input).andExpect(status().isCreated());

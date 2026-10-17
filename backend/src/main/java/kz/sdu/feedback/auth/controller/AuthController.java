@@ -58,7 +58,12 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public CurrentUser me(Authentication authentication) { return accounts.currentUser(authentication.getName()); }
+    public CurrentUser me(Authentication authentication, CsrfToken csrf, HttpServletResponse response) {
+        // Bind the editor's CSRF token to the same session that supplied its account identity.
+        response.setHeader(csrf.getHeaderName(), csrf.getToken());
+        response.setHeader("Cache-Control", "no-store");
+        return accounts.currentUser(authentication.getName());
+    }
 
     @GetMapping("/csrf")
     public Map<String, String> csrf(CsrfToken token) {

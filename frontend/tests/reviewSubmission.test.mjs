@@ -34,12 +34,12 @@ for(const [label,value] of [['no rating',{...draft,rating:null}],['invalid ratin
   test(`${label} disables Submit and rejects without a request`,async()=>{
     assert.equal(completeDraft(value),false); assert.equal(button(value).props.disabled,true);
     globalThis.fetch=()=>{throw Error('must not call server');};
-    await assert.rejects(createReviewSubmission(target).submit(value));
+    await assert.rejects(createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit(value));
   });
 test('submission sends only exact target/rating/text with CSRF and session credentials; clears current draft only',async()=>{
   const data=setup(); let sent;
   network(async(path,options)=>{sent={path,...options};return response();});
-  const result=await createReviewSubmission(target).submit({...draft,userId:99});
+  const result=await createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit({...draft,userId:99});
   assert.equal(sent.path,'/api/student/reviews'); assert.equal(sent.method,'POST'); assert.equal(sent.credentials,'same-origin');
   assert.equal(sent.headers['X-CSRF-TOKEN'],'test-only');
   assert.deepEqual(JSON.parse(sent.body),{courseOfferingId:1,academicTerm:target.academicTerm,...draft});
@@ -51,20 +51,20 @@ test('one in-flight action cannot double-submit and button is disabled while pen
   setup(); let resolveResponse,calls=0;
   const gate=new Promise(resolve=>{resolveResponse=resolve;});
   network(async()=>{calls++;return gate;});
-  const action=createReviewSubmission(target); const first=action.submit(draft);
+  const action=createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }); const first=action.submit(draft);
   assert.equal(action.pending,true); assert.equal(button(draft,action.pending).props.disabled,true);
   assert.equal(await action.submit(draft),null);
   resolveResponse(response()); await first; assert.equal(calls,1); assert.equal(action.pending,false);
 });
 for(const status of [400,401,403,500]) test(`HTTP ${status} keeps draft and exposes a safe error`,async()=>{
   setup(); network(async()=>response(status));
-  await assert.rejects(createReviewSubmission(target).submit(draft),error=>!error.message.includes('SQL'));
+  await assert.rejects(createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit(draft),error=>!error.message.includes('SQL'));
   assert.deepEqual(loadDraft(target,null),draft); assert.equal(loadDraft(other,null).text,'Other target');
 });
 test('duplicate conflict shows friendly feedback, never succeeds, and keeps both drafts', async () => {
   setup(); let calls = 0;
   network(async () => { calls++; return response(409); });
-  const action = createReviewSubmission(target);
+  const action = createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' });
   await assert.rejects(action.submit(draft), /You already submitted feedback for this course offering and term/);
   assert.deepEqual(loadDraft(target,null), draft);
   assert.deepEqual(loadDraft(other,null), {rating:2,text:'Other target'});
@@ -72,15 +72,15 @@ test('duplicate conflict shows friendly feedback, never succeeds, and keeps both
 });
 test('network failure or unexpected success target preserves draft',async()=>{
   setup(); network(async()=>{throw new TypeError('network');});
-  await assert.rejects(createReviewSubmission(target).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);
+  await assert.rejects(createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);
   network(async()=>response(201,{courseOfferingId:999}));
-  await assert.rejects(createReviewSubmission(target).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);
+  await assert.rejects(createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit(draft)); assert.deepEqual(loadDraft(target,null),draft);
 });
 
 for (const overrides of [{reviewId:0},{reviewId:null},{status:null},{status:'PUBLISHED'}])
   test(`unconfirmed submission identity/status preserves drafts: ${JSON.stringify(overrides)}`,async()=>{
     setup(); network(async()=>response(201,overrides));
-    await assert.rejects(createReviewSubmission(target).submit(draft));
+    await assert.rejects(createReviewSubmission(target, { 'X-CSRF-TOKEN': 'test-only' }).submit(draft));
     assert.deepEqual(loadDraft(target,null),draft);
     assert.equal(loadDraft(other,null).text,'Other target');
   });

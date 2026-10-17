@@ -5,26 +5,29 @@ import { FEEDBACK_MAX_LENGTH, loadDraft, saveDraft, validDraft } from '../pages/
 import type { ReviewDraft } from '../pages/reviewDraft';
 import RatingInput from './RatingInput';
 import { completeDraft, createReviewSubmission } from '../pages/reviewSubmission';
+import { AccountSessionExpired, reviewSessionHeaders } from '../api/auth';
+import type { CurrentUser } from '../api/auth';
 
 // Mounted only after the current server eligibility response authorizes this target.
-export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { target: ReviewEligibility; urlRating: number | null; onSubmitted?: (reviewId: number) => void }) {
+export default function ReviewDraftEditor({ target, urlRating, onSubmitted, account, onSessionExpired }: { target: ReviewEligibility; urlRating: number | null; onSubmitted?: (reviewId: number) => void; account?: CurrentUser | null; onSessionExpired?: () => void }) {
   const notify = useToast();
-  const [draft, setDraft] = useState(() => loadDraft(target, urlRating));
+  const [draftTarget] = useState(() => ({ ...target, ownerId: account?.id }));
+  const [draft, setDraft] = useState(() => loadDraft(draftTarget, urlRating));
   const [storageFailed, setStorageFailed] = useState(false);
-  const [submission] = useState(() => createReviewSubmission(target));
+  const [submission] = useState(() => createReviewSubmission(draftTarget, reviewSessionHeaders(account)));
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { if (!submitted) setStorageFailed(!saveDraft(target, draft)); }, [target, draft, submitted]);
+  useEffect(() => { if (!submitted) setStorageFailed(!saveDraft(draftTarget, draft)); }, [draftTarget, draft, submitted]);
 
   function update(next: ReviewDraft) {
     if (submission.pending || submitted) return;
     const checked = validDraft(next);
     setDraft(checked);
     // Save immediately so switching targets cannot lose the last keystroke.
-    setStorageFailed(!saveDraft(target, checked));
+    setStorageFailed(!saveDraft(draftTarget, checked));
   }
 
   async function submit() {
@@ -38,6 +41,7 @@ export default function ReviewDraftEditor({ target, urlRating, onSubmitted }: { 
         onSubmitted?.(result.reviewId);
       }
     } catch (failure) {
+      if (failure instanceof AccountSessionExpired) { if (mounted.current) onSessionExpired?.(); return; }
       if (mounted.current) notify('reviewError');
       if (mounted.current) setError(failure instanceof Error && failure.name !== 'TimeoutError' && failure.name !== 'TypeError'
         ? failure.message : 'Submission could not be confirmed. Your draft has been kept; check your connection before retrying.');

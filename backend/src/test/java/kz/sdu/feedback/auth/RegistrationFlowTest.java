@@ -105,6 +105,21 @@ class RegistrationFlowTest {
         assertTrue(delivered.isEmpty());
     }
 
+    @ParameterizedTest @ValueSource(strings={"        ", " \t\n\r    ", "\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003"})
+    void blankPasswordRejectedWithoutAccountOrEmail(String blank) throws Exception {
+        postJson("register", Map.of("email", STUDENT, "password", blank), 400);
+        assertEquals(0, users.count()); assertEquals(0, challenges.count()); assertTrue(delivered.isEmpty());
+    }
+
+    @Test void significantPasswordSpacesSurviveRegistrationVerificationAndLogin() throws Exception {
+        String spaced = "  valid password  ";
+        postJson("register", Map.of("email", STUDENT, "password", spaced), 202);
+        assertTrue(encoder.matches(spaced, users.findByEmail(STUDENT).orElseThrow().getPasswordHash()));
+        verifyCode(STUDENT, code(), 200);
+        postJson("login", Map.of("email", STUDENT, "password", spaced), 200);
+        postJson("login", Map.of("email", STUDENT, "password", spaced.strip()), 401);
+    }
+
     @Test void duplicateRegistrationDoesNotOverwriteOrResend() throws Exception {
         register(STUDENT);
         var before = users.findByEmail(STUDENT).orElseThrow();

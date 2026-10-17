@@ -8,6 +8,12 @@ export interface CurrentUser {
   linkedTeacher: { id: number; name: string } | null;
 }
 
+// Memory only: never persist tokens or transfer them between accounts/tabs.
+const reviewTokens = new WeakMap<CurrentUser, Record<string, string>>();
+export function reviewSessionHeaders(user?: CurrentUser | null) {
+  return user ? reviewTokens.get(user) : undefined;
+}
+
 export async function getCurrentUser(signal: AbortSignal): Promise<CurrentUser | null> {
   const response = await fetch('/api/auth/me', {
     credentials: 'same-origin',
@@ -15,7 +21,10 @@ export async function getCurrentUser(signal: AbortSignal): Promise<CurrentUser |
   });
   if (response.status === 401) return null;
   if (!response.ok) throw new Error('Could not check your session. Please try again.');
-  return response.json();
+  const user: CurrentUser = await response.json();
+  const token = response.headers.get('X-CSRF-TOKEN');
+  if (token) reviewTokens.set(user, { 'X-CSRF-TOKEN': token });
+  return user;
 }
 
 export async function csrfHeaders(): Promise<Record<string, string>> {
@@ -48,7 +57,10 @@ async function authPost(path: string, body?: Record<string, string | number>, ti
 }
 
 export async function signIn(email: string, password: string): Promise<CurrentUser> {
-  return (await authPost('/api/auth/login', { email, password })).json();
+  await authPost('/api/auth/login', { email, password });
+  const user = await getCurrentUser(new AbortController().signal);
+  if (!user) throw new AccountSessionExpired();
+  return user;
 }
 
 export class AccountSessionExpired extends Error {

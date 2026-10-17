@@ -33,7 +33,8 @@ class RegistrationPolicyTest {
         assertDoesNotThrow(() -> policy.validatePassword("a".repeat(8)));
         assertDoesNotThrow(() -> policy.validatePassword("a".repeat(72)));
         assertDoesNotThrow(() -> policy.validatePassword("я".repeat(36)));
-        for (String input : new String[]{null, "short", "a".repeat(73), "я".repeat(37), "1234567\0"}) {
+        assertDoesNotThrow(() -> policy.validatePassword("  valid password  "));
+        for (String input : new String[]{null, "short", "        ", " \t\n\r    ", "\u2003".repeat(8), "a".repeat(73), "я".repeat(37), "1234567\0"}) {
             assertThrows(ResponseStatusException.class, () -> policy.validatePassword(input));
         }
     }

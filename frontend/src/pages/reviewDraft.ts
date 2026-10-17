@@ -3,10 +3,10 @@ import type { ReviewEligibility } from '../api/scheduleUploads';
 export const FEEDBACK_MAX_LENGTH = 2000;
 const PREFIX = 'review-draft:';
 export interface ReviewDraft { rating: number | null; text: string }
-type DraftTarget = Pick<ReviewEligibility, 'courseOfferingId' | 'academicTerm'>;
+export type DraftTarget = Pick<ReviewEligibility, 'courseOfferingId' | 'academicTerm'> & { ownerId?: number };
 
 export function draftKey(target: DraftTarget) {
-  return PREFIX + JSON.stringify([target.courseOfferingId, target.academicTerm]);
+  return PREFIX + JSON.stringify([target.ownerId ?? null, target.courseOfferingId, target.academicTerm]);
 }
 
 export function validDraft(value: unknown): ReviewDraft {
@@ -35,7 +35,7 @@ export function clearDraft(target: DraftTarget): boolean {
   try { sessionStorage.removeItem(draftKey(target)); return true; } catch { return false; }
 }
 
-// Authentication lifecycle cleanup; no account identifiers or credentials are stored.
+// Authentication lifecycle cleanup. Draft keys include an account ID, never credentials.
 export function clearReviewDrafts() {
   try {
     for (let index = sessionStorage.length - 1; index >= 0; index--) {

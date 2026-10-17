@@ -91,14 +91,20 @@ export async function getReviewStatus(reviewId: string, signal: AbortSignal): Pr
   return response.json();
 }
 
-export async function submitReview(input: ReviewRequest): Promise<ReviewSubmission> {
+export async function submitReview(input: ReviewRequest, sessionHeaders: Record<string, string> | undefined): Promise<ReviewSubmission> {
+  // Never fetch a fresh token here: another tab may now be signed in as someone else.
+  if (!sessionHeaders?.['X-CSRF-TOKEN']) throw new AccountSessionExpired();
   const response = await fetch('/api/student/reviews', {
     method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    headers: { 'Content-Type': 'application/json', ...sessionHeaders },
     body: JSON.stringify({ courseOfferingId: input.courseOfferingId, academicTerm: input.academicTerm, rating: input.rating, text: input.text }),
     signal: AbortSignal.timeout(15000),
   });
-  if (response.status === 401) throw new Error('Sign in again before submitting. Your draft has been kept.');
+  if (response.status === 401) throw new AccountSessionExpired();
+  if (response.status === 403) {
+    const error = await response.json().catch(() => null);
+    if (error?.message === 'Request could not be verified. Please try again.') throw new AccountSessionExpired();
+  }
   if (response.status === 409) throw new Error('You already submitted feedback for this course offering and term. Your draft has been kept.');
   if (response.status === 403) throw new Error('This course is not available for review, or your session needs refreshing. Your draft has been kept.');
   if (!response.ok) throw new Error('Review could not be submitted. Check your rating and feedback, then try again.');

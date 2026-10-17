@@ -19,8 +19,8 @@ export default function RegisterPage() {
     if (!['stu.sdu.edu.kz', 'sdu.edu.kz'].includes(email.split('@')[1]) || email.split('@').length !== 2) {
       setError('Use your @stu.sdu.edu.kz or @sdu.edu.kz email address.'); return;
     }
-    if (Array.from(password).length < 8 || new TextEncoder().encode(password).length > 72) {
-      setError('Password must contain at least 8 characters and at most 72 UTF-8 bytes.'); return;
+    if (!password.trim() || Array.from(password).length < 8 || new TextEncoder().encode(password).length > 72) {
+      setError('Password must not be blank and must contain at least 8 characters and at most 72 UTF-8 bytes.'); return;
     }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     (form.elements.namedItem('password') as HTMLInputElement).value = '';
@@ -43,7 +43,7 @@ export default function RegisterPage() {
         <input id="register-email" name="email" type="email" autoComplete="email" maxLength={254} required disabled={busy} />
         <label htmlFor="register-password">Password</label>
         <input id="register-password" name="password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required disabled={busy} aria-describedby="password-policy" />
-        <p id="password-policy" className="form-hint">At least 8 characters, up to 72 UTF-8 bytes. Some characters use more than one byte.</p>
+        <p id="password-policy" className="form-hint">At least 8 characters, up to 72 UTF-8 bytes. Cannot contain only whitespace. Some characters use more than one byte.</p>
         <label htmlFor="register-confirm">Confirm Password</label>
         <input id="register-confirm" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} maxLength={72} required disabled={busy} />
         {error && <p className="account-error" role="alert">{error}</p>}

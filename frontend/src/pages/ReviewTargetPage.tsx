@@ -4,6 +4,7 @@ import LoadingState from '../components/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountSessionExpired } from '../api/auth';
+import type { CurrentUser } from '../api/auth';
 import { listReviewEligibilities } from '../api/scheduleUploads';
 import type { ReviewEligibility } from '../api/scheduleUploads';
 import { useAuth } from '../auth/AuthContext';
@@ -49,7 +50,7 @@ export default function ReviewTargetPage() {
 }
 
 function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
-  const { expireSession } = useAuth();
+  const { currentUser, expireSession } = useAuth();
   const [rows, setRows] = useState<ReviewEligibility[]>([]);
   const [reviews, setReviews] = useState<OwnReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +83,7 @@ function ReviewTargets({ search, onSelect, onSubmitted }: SelectionProps) {
     <p>Choose the course, teacher and academic term for your feedback.</p>
     {loading ? <LoadingState label="Loading available courses…" /> : error ? <div className="state-message error-message" role="alert">
       <p>{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
-    </div> : <ReviewTargetSelection rows={rows} reviews={reviews} search={search} onSelect={onSelect} onSubmitted={onSubmitted} />}
+    </div> : <ReviewTargetSelection rows={rows} reviews={reviews} search={search} onSelect={onSelect} onSubmitted={onSubmitted} account={currentUser} onSessionExpired={expireSession} />}
   </main>;
 }
 
@@ -90,6 +91,8 @@ interface SelectionProps {
   search: string;
   onSelect: (target: ReviewEligibility) => void;
   onSubmitted?: (reviewId: number) => void;
+  account?: CurrentUser | null;
+  onSessionExpired?: () => void;
 }
 
 function TargetDetails({ target }: { target: ReviewEligibility }) {
@@ -101,7 +104,7 @@ function TargetDetails({ target }: { target: ReviewEligibility }) {
   </>;
 }
 
-export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmitted }: SelectionProps & { rows: ReviewEligibility[]; reviews: OwnReview[] }) {
+export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmitted, account, onSessionExpired }: SelectionProps & { rows: ReviewEligibility[]; reviews: OwnReview[] }) {
   const selection = resolveReviewTarget(rows, search);
   const selectedReview = selection.kind === 'selected' ? existingReview(reviews, selection.target) : undefined;
   // US20 supplies unique targets in deterministic order; no catalog matching/grouping happens here.
@@ -113,7 +116,7 @@ export function ReviewTargetSelection({ rows, reviews, search, onSelect, onSubmi
       <h2 id="selected-target-title">Selected review target</h2>
       <TargetDetails target={selection.target} />
       {selectedReview ? <ExistingReviewAction review={selectedReview} />
-        : <ReviewDraftEditor key={reviewTargetQuery(selection.target).toString()} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} />}
+        : <ReviewDraftEditor key={`${account?.id}:${reviewTargetQuery(selection.target)}`} target={selection.target} urlRating={readReviewRating(search)} onSubmitted={onSubmitted} account={account} onSessionExpired={onSessionExpired} />}
     </section>}
     {rows.length === 0 ? <EmptyState title="No verified courses are currently available for review." description="Upload and verify your Detailed Schedule to make eligible courses available." action={{ to: "/student/schedules", label: "Upload Schedule" }} /> : <>
       <p>{rows.length} available review targets</p>

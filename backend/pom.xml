@@ -79,4 +79,51 @@
             </plugin>
         </plugins>
     </build>
+    <!-- Opt-in tooling only: no runtime Flyway dependency or lifecycle execution. -->
+    <profiles>
+        <profile>
+            <id>db-migrations</id>
+            <properties>
+                <!-- Match the versions managed by this project's Spring Boot 4.1.1. -->
+                <schema.flyway.version>12.4.0</schema.flyway.version>
+                <schema.postgresql.version>42.7.13</schema.postgresql.version>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-maven-plugin</artifactId>
+                        <version>${schema.flyway.version}</version>
+                        <configuration>
+                            <url>${env.DB_URL}</url>
+                            <user>${env.DB_USERNAME}</user>
+                            <password>${env.DB_PASSWORD}</password>
+                            <schemas><schema>public</schema></schemas>
+                            <defaultSchema>public</defaultSchema>
+                            <createSchemas>false</createSchemas>
+                            <locations>
+                                <location>filesystem:${project.basedir}/src/main/resources/db/migration</location>
+                            </locations>
+                            <failOnMissingLocations>true</failOnMissingLocations>
+                            <baselineVersion>1</baselineVersion>
+                            <baselineOnMigrate>false</baselineOnMigrate>
+                            <cleanDisabled>true</cleanDisabled>
+                        </configuration>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.flywaydb</groupId>
+                                <artifactId>flyway-database-postgresql</artifactId>
+                                <version>${schema.flyway.version}</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.postgresql</groupId>
+                                <artifactId>postgresql</artifactId>
+                                <version>${schema.postgresql.version}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

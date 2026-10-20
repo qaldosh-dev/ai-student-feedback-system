@@ -157,8 +157,9 @@ Future changes use V2, V3, etc. Never edit a V1 already applied to any database.
 
 `us28-review-uniqueness.sql` and `review-moderation-retry.sql` remain historical/reference
 files. Their final effects are already in V1. **Do not manually replay them after
-adoption or on a fresh migrated database.** Earlier SQL snippets in the root README
-describe historical actions, not the current deployment sequence.
+adoption or on a fresh migrated database.** Earlier SQL snippets in the
+[development archive](../../docs/development-history.md) describe historical actions,
+not the current deployment sequence.
 
 ## Tests and failure safety
 

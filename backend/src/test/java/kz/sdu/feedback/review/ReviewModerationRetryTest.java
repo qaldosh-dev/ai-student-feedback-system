@@ -186,7 +186,16 @@ class ReviewModerationRetryTest {
         try (var pool = Executors.newSingleThreadExecutor()) {
             var first = pool.submit(() -> service.retryModeration(EMAIL, reviewId));
             try {
-                assertTrue(started.await(10, TimeUnit.SECONDS)); ageAttempt(); service.retryModeration(EMAIL, reviewId);
+                assertTrue(started.await(10, TimeUnit.SECONDS));
+                var firstAttempt = reviews.findById(reviewId).orElseThrow().getLastModerationAttemptAt();
+                // Advance the retry clock instead of aging the row: two real calls can share
+                // a Windows clock tick, which would not represent a genuinely later retry.
+                var retryAt = firstAttempt.plusSeconds(61);
+                try (var clock = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+                    clock.when(Instant::now).thenReturn(retryAt);
+                    service.retryModeration(EMAIL, reviewId);
+                }
+                assertEquals(retryAt, reviews.findById(reviewId).orElseThrow().getLastModerationAttemptAt());
             } finally { release.countDown(); }
             first.get(10, TimeUnit.SECONDS);
         }

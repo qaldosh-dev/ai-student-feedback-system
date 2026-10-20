@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import java.io.IOException;
 import java.net.http.*;
+import java.util.concurrent.CompletableFuture;
+import kz.sdu.feedback.gemini.GeminiTransport;
 import java.util.stream.Collectors;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -27,12 +29,12 @@ class GeminiDiagnosticsTest {
         logger.detachAppender(appender); appender.stop(); Thread.interrupted();
     }
     String logs() { return appender.list.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining("\n")); }
-    GeminiModerationProvider provider(String key, String model) { return new GeminiModerationProvider(key, model, 8000, () -> http); }
+    GeminiModerationProvider provider(String key, String model) { return new GeminiModerationProvider(new GeminiTransport(key, model, 8000, http)); }
     @SuppressWarnings("unchecked")
     void response(int status, String body) throws Exception {
         HttpResponse<String> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(status); when(response.body()).thenReturn(body);
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.completedFuture(response));
     }
     @Test void startupReportsPresenceOnlyAndMissingKeyMakesNoNetworkRequest() {
         assertThrows(IllegalStateException.class, () -> provider("", "gemini-test").moderate(FEEDBACK));
@@ -62,15 +64,15 @@ class GeminiDiagnosticsTest {
         assertTrue(logs().contains("UNRECOGNIZED_PROVIDER_ERROR"));
     }
     @Test void timeoutAndNetworkAreDistinctWithoutRawExceptionMessages() throws Exception {
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException(SECRET));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new HttpTimeoutException(SECRET)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").moderate(FEEDBACK));
         assertTrue(logs().contains("category=TIMEOUT"));
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new IOException(SECRET));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new IOException(SECRET)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").moderate(FEEDBACK));
         assertTrue(logs().contains("category=NETWORK"));
     }
     @Test void interruptedRequestRestoresInterruptFlag() throws Exception {
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new InterruptedException(SECRET));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new InterruptedException(SECRET)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").moderate(FEEDBACK));
         assertTrue(Thread.currentThread().isInterrupted()); assertTrue(logs().contains("REQUEST_INTERRUPTED"));
     }

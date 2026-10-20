@@ -1,6 +1,7 @@
 package kz.sdu.feedback.review.moderation;
 
 import static org.junit.jupiter.api.Assertions.*;
+import kz.sdu.feedback.gemini.GeminiTransport;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,7 +63,16 @@ class GeminiModerationProviderTest {
         assertTrue(GeminiModerationProvider.POLICY.contains("Allow negative criticism"));
     }
     @Test void missingKeyFailsWithoutNetwork() {
-        assertThrows(IllegalStateException.class, () -> new GeminiModerationProvider("", "gemini-3.5-flash-lite", 8000).moderate("Feedback"));
+        assertThrows(IllegalStateException.class, () -> new GeminiModerationProvider(new GeminiTransport("", "gemini-3.5-flash-lite", 8000, org.mockito.Mockito.mock(java.net.http.HttpClient.class))).moderate("Feedback"));
+    }
+    @Test void everyValidLengthIncludingWorstEscapingFitsWithoutTruncation() {
+        for (String unit : List.of("x", "Қ", "😀", "\"", "\\", "\u0001")) {
+            String text = unit.repeat(2000 / unit.length());
+            String body = GeminiModerationProvider.requestBody(text);
+            assertTrue(GeminiTransport.fits(body));
+            assertEquals(2000, text.length());
+            assertEquals(text, JSON.readTree(body).at("/contents/0/parts/0/text").asText());
+        }
     }
     @Test void resultContractRejectsInconsistentData() {
         assertThrows(IllegalArgumentException.class, () -> new ModerationResult(null, Set.of()));

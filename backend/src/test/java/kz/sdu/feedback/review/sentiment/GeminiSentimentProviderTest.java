@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import java.io.IOException;
 import java.net.http.*;
+import java.util.concurrent.CompletableFuture;
+import kz.sdu.feedback.gemini.GeminiTransport;
 import java.util.*;
 import java.util.stream.Collectors;
 import ch.qos.logback.classic.Logger;
@@ -28,7 +30,7 @@ class GeminiSentimentProviderTest {
         assertTrue(appender.list.stream().allMatch(event -> event.getThrowableProxy() == null));
     }
     String logs() { return appender.list.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining("\n")); }
-    GeminiSentimentProvider provider(String key, String model) { return new GeminiSentimentProvider(key, model, 8000, () -> http); }
+    GeminiSentimentProvider provider(String key, String model) { return new GeminiSentimentProvider(new GeminiTransport(key, model, 8000, http)); }
     static String envelope(String output) {
         return JSON.writeValueAsString(Map.of("candidates", List.of(Map.of("finishReason", "STOP",
                 "content", Map.of("parts", List.of(Map.of("text", output)))))));
@@ -36,7 +38,7 @@ class GeminiSentimentProviderTest {
     @SuppressWarnings("unchecked") void response(int status, String body) throws Exception {
         HttpResponse<String> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(status); when(response.body()).thenReturn(body);
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.completedFuture(response));
     }
     @Test void validStructuredResponsePreservesItemOrder() throws Exception {
         response(200, envelope("{\"sentiments\":[\"POSITIVE\",\"NEUTRAL\",\"NEGATIVE\"]}"));
@@ -103,13 +105,13 @@ class GeminiSentimentProviderTest {
         assertEquals(List.of(), provider(SECRET, "gemini-test").classify(List.of())); verifyNoInteractions(http);
     }
     @Test void timeoutNetworkAndInterruptNeverLogExceptionText() throws Exception {
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException(SECRET + TEXT));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new HttpTimeoutException(SECRET + TEXT)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").classify(List.of(TEXT)));
         assertTrue(logs().contains("TIMEOUT"));
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new IOException(SECRET + TEXT));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new IOException(SECRET + TEXT)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").classify(List.of(TEXT)));
         assertTrue(logs().contains("NETWORK"));
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new InterruptedException(SECRET));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new InterruptedException(SECRET)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").classify(List.of(TEXT)));
         assertTrue(Thread.currentThread().isInterrupted()); assertTrue(logs().contains("REQUEST_INTERRUPTED"));
     }

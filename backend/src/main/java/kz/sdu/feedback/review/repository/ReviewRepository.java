@@ -13,7 +13,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             + "and o.course.id = :courseId and r.academicTerm = :term "
             + "and r.status = kz.sdu.feedback.review.entity.ReviewStatus.PUBLISHED order by r.id")
     java.util.List<String> findPublishedSentimentTexts(@Param("teacherId") Long teacherId,
-            @Param("courseId") Long courseId, @Param("term") String term);
+            @Param("courseId") Long courseId, @Param("term") String term, org.springframework.data.domain.Pageable limit);
 
     // Counts are internal to the privacy policy; small counts are never serialized.
     @Query("select o.course.id as courseId, r.academicTerm as academicTerm, count(distinct r.id) as reviewCount "

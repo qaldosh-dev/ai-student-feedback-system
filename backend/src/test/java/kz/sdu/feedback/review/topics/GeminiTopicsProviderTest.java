@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import java.io.IOException;
 import java.net.http.*;
+import java.util.concurrent.CompletableFuture;
+import kz.sdu.feedback.gemini.GeminiTransport;
 import java.util.*;
 import java.util.stream.Collectors;
 import ch.qos.logback.classic.Logger;
@@ -28,7 +30,7 @@ class GeminiTopicsProviderTest {
         assertTrue(appender.list.stream().allMatch(event -> event.getThrowableProxy() == null));
     }
     String logs() { return appender.list.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining("\n")); }
-    GeminiTopicsProvider provider(String key, String model) { return new GeminiTopicsProvider(key, model, 8000, () -> http); }
+    GeminiTopicsProvider provider(String key, String model) { return new GeminiTopicsProvider(new GeminiTransport(key, model, 8000, http)); }
     static String envelope(String output) {
         return JSON.writeValueAsString(Map.of("candidates", List.of(Map.of("finishReason", "STOP",
                 "content", Map.of("parts", List.of(Map.of("text", output)))))));
@@ -36,7 +38,7 @@ class GeminiTopicsProviderTest {
     @SuppressWarnings("unchecked") void response(int status, String body) throws Exception {
         HttpResponse<String> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(status); when(response.body()).thenReturn(body);
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.completedFuture(response));
     }
     @Test void validShortTopicsAndConcernsRemainSeparate() throws Exception {
         response(200, envelope("{\"topics\":[\" Clear   explanations \"],\"concerns\":[\"Short deadlines\"]}"));
@@ -130,13 +132,13 @@ class GeminiTopicsProviderTest {
         assertEquals(new TopicsResult(List.of(), List.of()), provider(SECRET, "gemini-test").analyze(List.of())); verifyNoInteractions(http);
     }
     @Test void timeoutNetworkAndInterruptNeverLogExceptionText() throws Exception {
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException(SECRET + TEXT));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new HttpTimeoutException(SECRET + TEXT)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").analyze(List.of(TEXT, "Other feedback")));
         assertTrue(logs().contains("TIMEOUT"));
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new IOException(SECRET + TEXT));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new IOException(SECRET + TEXT)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").analyze(List.of(TEXT, "Other feedback")));
         assertTrue(logs().contains("NETWORK"));
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new InterruptedException(SECRET));
+        when(http.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(CompletableFuture.failedFuture(new InterruptedException(SECRET)));
         assertThrows(IllegalStateException.class, () -> provider(SECRET, "gemini-test").analyze(List.of(TEXT, "Other feedback")));
         assertTrue(Thread.currentThread().isInterrupted()); assertTrue(logs().contains("REQUEST_INTERRUPTED"));
     }

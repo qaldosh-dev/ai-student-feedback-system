@@ -35,7 +35,10 @@ public class TeacherAnalyticsService {
         var scope = scope(teacherId, courseId, term);
         var course = scope.courses().stream().filter(option -> option.courseId().equals(courseId)).findFirst().orElseThrow();
         return new SentimentInput(course, scope.selectedAcademicTerm(),
-                List.copyOf(reviews.findPublishedSentimentTexts(teacherId, courseId, term)));
+                // One extra item detects the extreme safety ceiling. Providers reject the entire
+                // analysis above that ceiling; this prefix is NEVER presented as a complete result.
+                List.copyOf(reviews.findPublishedSentimentTexts(teacherId, courseId, term,
+                        org.springframework.data.domain.PageRequest.of(0, kz.sdu.feedback.gemini.GeminiWork.MAX_REVIEWS + 1))));
     }
 
     public record SentimentInput(CourseOption course, String term, List<String> texts) {
